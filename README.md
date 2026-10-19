@@ -64,7 +64,7 @@ la relocation `weeno.nightcache` du shadowJar conservée pour réécrire les ré
 libs:
   nightcache:
     auto-update: true
-    releases: "https://github.com/HeenoDev/NightCache/releases"
+    releases: "https://github.com/NightProjectS/NightCache/releases"
 ```
 
 Construire en local : `mvn package -Drevision=1.0.0` (jar dans `target/NightCache.jar`) ; vérification 1.21.11 :

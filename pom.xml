@@ -19,7 +19,7 @@
     <packaging>jar</packaging>
     <name>NightCache</name>
     <description>Caches RAM + persistance SQLite légers, sans fuite, pour plugins Minecraft 1.8 → 1.21.11 (Java 21)</description>
-    <url>https://github.com/HeenoDev/NightCache</url>
+    <url>https://github.com/NightProjectS/NightCache</url>
 
     <properties>
         <!-- Surchargé par la CI : -Drevision=1.0.<build> -->

@@ -2,7 +2,7 @@ name: release
 
 # Chaque push sur main : compile contre Spigot 1.8.8 ET Paper 1.21.11, puis publie la release v<major.minor>.<build>
 # (marquée « latest ») avec NightCache.jar, NightCache.jar.sha256 et version.txt. Les plugins téléchargent
-# https://github.com/HeenoDev/NightCache/releases/latest/download/<fichier> au chargement.
+# https://github.com/NightProjectS/NightCache/releases/latest/download/<fichier> au chargement.
 on:
   push:
     branches: [main]

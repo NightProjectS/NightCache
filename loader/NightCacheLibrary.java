@@ -46,7 +46,7 @@ public final class NightCacheLibrary {
     private static final String JAR = "NightCache.jar";
     private static final String VERSION = "NightCache.version";
     private static final String CACHE_DIR = ".relocated";
-    private static final String DEFAULT_RELEASES = "https://github.com/HeenoDev/NightCache/releases";
+    private static final String DEFAULT_RELEASES = "https://github.com/NightProjectS/NightCache/releases";
 
     private NightCacheLibrary() {
     }
