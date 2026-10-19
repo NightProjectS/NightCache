@@ -113,13 +113,14 @@ public final class ObjectLongCache<K> implements Managed {
         return cell;
     }
 
+    /** Cellule {@code [valeur]}, ou {@code [valeur, expiration]} avec TTL : 8 octets de moins par clé sans TTL. */
     private void write(@NotNull K key, long value) {
         long[] cell = map.get(key);
         if (cell == null) {
-            cell = new long[2];
+            cell = new long[ttlMs > 0 ? 2 : 1];
             map.put(key, cell);
         }
         cell[0] = value;
-        cell[1] = ttlMs > 0 ? System.currentTimeMillis() + ttlMs : Long.MAX_VALUE;
+        if (ttlMs > 0) cell[1] = System.currentTimeMillis() + ttlMs;
     }
 }

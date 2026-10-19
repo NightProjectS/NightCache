@@ -37,6 +37,8 @@ import java.util.Map;
 public final class SqliteStore<K, V> implements PersistentStore<K, V> {
 
     private static final String UPSERT = "INSERT OR REPLACE INTO data (k, v, t) VALUES (?, ?, ?)";
+    private static final String SELECT_ONE = "SELECT v FROM data WHERE k=?";
+    private static final String DELETE_ONE = "DELETE FROM data WHERE k=?";
     private static final long VACUUM_PERCENT = 25L;
 
     private final File file;
@@ -45,6 +47,10 @@ public final class SqliteStore<K, V> implements PersistentStore<K, V> {
     private final Serializer<V> serializer;
 
     private @Nullable Connection connection; // confiné au writer
+    // Requêtes fréquentes compilées une fois et réutilisées (confinées au writer, fermées avec la connexion).
+    private @Nullable PreparedStatement upsert;
+    private @Nullable PreparedStatement selectOne;
+    private @Nullable PreparedStatement deleteOne;
     private boolean closed;
 
     /** Ne pas instancier directement : passer par {@code PersistenceManager.store(...)}. */
@@ -71,16 +77,16 @@ public final class SqliteStore<K, V> implements PersistentStore<K, V> {
     public V load(@NotNull K key) {
         return PersistenceManager.onWriter(name, "load", () -> {
             String k = codec.encode(key);
-            try (PreparedStatement ps = prepare("SELECT v FROM data WHERE k=?")) {
-                ps.setString(1, k);
-                try (ResultSet rs = ps.executeQuery()) {
-                    if (!rs.next()) return null;
-                    String raw = rs.getString(1);
-                    V v = decode(raw);
-                    if (v == null) quarantine(k, raw);
-                    return v;
-                }
+            PreparedStatement ps = selectOne();
+            ps.setString(1, k);
+            String raw;
+            try (ResultSet rs = ps.executeQuery()) {
+                if (!rs.next()) return null;
+                raw = rs.getString(1);
             }
+            V v = decode(raw);
+            if (v == null) quarantine(k, raw);
+            return v;
         });
     }
 
@@ -105,9 +111,17 @@ public final class SqliteStore<K, V> implements PersistentStore<K, V> {
         });
     }
 
+    /** Une ligne : upsert direct (transaction implicite de SQLite), sans map ni lot intermédiaires. */
     @Override
     public void save(@NotNull K key, @NotNull V value) {
-        saveAll(Collections.singletonMap(key, value));
+        PersistenceManager.onWriter(name, "save", () -> {
+            PreparedStatement ps = upsert();
+            ps.setString(1, codec.encode(key));
+            ps.setString(2, serializer.serialize(value));
+            ps.setLong(3, System.currentTimeMillis());
+            ps.executeUpdate();
+            return null;
+        });
     }
 
     /** Upsert en une transaction. Les valeurs doivent être détachées de l'état vivant. */
@@ -129,10 +143,9 @@ public final class SqliteStore<K, V> implements PersistentStore<K, V> {
     @Override
     public void delete(@NotNull K key) {
         PersistenceManager.onWriter(name, "delete", () -> {
-            try (PreparedStatement ps = prepare("DELETE FROM data WHERE k=?")) {
-                ps.setString(1, codec.encode(key));
-                ps.executeUpdate();
-            }
+            PreparedStatement ps = deleteOne();
+            ps.setString(1, codec.encode(key));
+            ps.executeUpdate();
             return null;
         });
     }
@@ -187,7 +200,10 @@ public final class SqliteStore<K, V> implements PersistentStore<K, V> {
                 long pages = scalar(st, "PRAGMA page_count");
                 long free = scalar(st, "PRAGMA freelist_count");
                 boolean compacted = healthy && pages > 0 && free * 100L / pages >= VACUUM_PERCENT;
-                if (compacted) st.execute("VACUUM");
+                if (compacted) {
+                    closeStatements(); // VACUUM exige qu'aucune requête ne reste préparée sur la connexion
+                    st.execute("VACUUM");
+                }
                 return new Maintenance(name, scalar(st, "SELECT COUNT(*) FROM data"), healthy, compacted, pages, free);
             }
         });
@@ -202,6 +218,7 @@ public final class SqliteStore<K, V> implements PersistentStore<K, V> {
     public void close() {
         PersistenceManager.onWriter(name, "close", () -> {
             closed = true;
+            closeStatements();
             Connection c = connection;
             connection = null;
             if (c != null) c.close();
@@ -235,6 +252,38 @@ public final class SqliteStore<K, V> implements PersistentStore<K, V> {
         return connection().prepareStatement(sql);
     }
 
+    private @NotNull PreparedStatement upsert() throws SQLException {
+        PreparedStatement ps = upsert;
+        if (ps == null) upsert = ps = connection().prepareStatement(UPSERT);
+        return ps;
+    }
+
+    private @NotNull PreparedStatement selectOne() throws SQLException {
+        PreparedStatement ps = selectOne;
+        if (ps == null) selectOne = ps = connection().prepareStatement(SELECT_ONE);
+        return ps;
+    }
+
+    private @NotNull PreparedStatement deleteOne() throws SQLException {
+        PreparedStatement ps = deleteOne;
+        if (ps == null) deleteOne = ps = connection().prepareStatement(DELETE_ONE);
+        return ps;
+    }
+
+    /** Ferme les requêtes en cache (avant la connexion) ; une erreur n'empêche pas de fermer les suivantes. */
+    private void closeStatements() {
+        PreparedStatement[] all = {upsert, selectOne, deleteOne};
+        upsert = selectOne = deleteOne = null;
+        for (PreparedStatement ps : all) {
+            if (ps == null) continue;
+            try {
+                ps.close();
+            } catch (SQLException e) {
+                Log.warning("store '" + name + "' : fermeture d'une requête (" + e.getMessage() + ")");
+            }
+        }
+    }
+
     private Void transaction(boolean replace, @NotNull Map<K, V> entries) throws SQLException {
         Connection c = connection();
         c.setAutoCommit(false);
@@ -243,8 +292,9 @@ public final class SqliteStore<K, V> implements PersistentStore<K, V> {
                 try (Statement st = c.createStatement()) { st.executeUpdate("DELETE FROM data"); }
             }
             if (!entries.isEmpty()) {
-                try (PreparedStatement ps = c.prepareStatement(UPSERT)) {
-                    long now = System.currentTimeMillis();
+                PreparedStatement ps = upsert();
+                long now = System.currentTimeMillis();
+                try {
                     for (Map.Entry<K, V> e : entries.entrySet()) {
                         ps.setString(1, codec.encode(e.getKey()));
                         ps.setString(2, serializer.serialize(e.getValue()));
@@ -252,6 +302,8 @@ public final class SqliteStore<K, V> implements PersistentStore<K, V> {
                         ps.addBatch();
                     }
                     ps.executeBatch();
+                } finally {
+                    ps.clearBatch(); // requête réutilisée : un lot partiel ou en échec ne doit jamais être rejoué
                 }
             }
             c.commit();

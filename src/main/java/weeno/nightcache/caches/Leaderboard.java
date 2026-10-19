@@ -7,38 +7,46 @@ import weeno.nightcache.interfaces.Managed;
 import weeno.nightcache.objects.CacheStats;
 import weeno.nightcache.objects.LeaderboardEntry;
 
-import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.PriorityQueue;
 
 /**
  * Classement {@code K → score (long)} avec lecture top-N triée.
  * <p>
- * Score par clé dans une cellule {@code long[1]} mutée en place (pas de boxing à chaque add).
- * Le top-N est calculé par <b>sélection partielle</b> (min-heap borné à N) en {@code O(m log N)},
- * snapshot mis en cache et throttlé ({@code refreshMs}). Les rangs hors top sont comptés en {@code O(m)}.
+ * Une cellule {@code long[2]} par clé, mutée en place : {@code [score, rang publié]}. Le rang publié porte la
+ * génération du snapshot dans ses 32 bits hauts : aucun index secondaire ni {@code Integer} boxé.
+ * <p>
+ * Le top-N est calculé par <b>sélection partielle</b> (tas-min borné à N, sur tableaux primitifs réutilisés) en
+ * {@code O(m log N)}, puis trié en place : seules les {@link LeaderboardEntry} publiées sont allouées. Le snapshot
+ * est recalculé après toute écriture (lecture exacte), et réutilisé tel quel pendant {@code refreshMs} sinon. Les
+ * rangs hors top sont comptés en {@code O(m)} sur les scores courants.
  * <p>
  * Thread: thread-safe.
  */
 public final class Leaderboard<K> implements Managed {
 
     private static final int DEFAULT_CAP = 1_000;
+    private static final long RANK_MASK = 0xFFFF_FFFFL;
 
     private final String name;
     private final long refreshMs;
     private final Object lock = new Object();
     private final HashMap<K, long[]> scores = new HashMap<>(256);
-    private final HashMap<K, Integer> topRanks = new HashMap<>(256);
 
     private List<LeaderboardEntry<K>> snapshot = Collections.emptyList();
     private int snapshotCap;
+    private int generation;
     private long lastRefresh;
     private boolean dirty = true;
     private long queries;
+
+    // Tampons du tas, réutilisés d'un calcul à l'autre (références nettoyées après usage).
+    private Object[] heapKeys = new Object[0];
+    private long[] heapScores = new long[0];
+    private long[][] heapCells = new long[0][];
 
     public Leaderboard(@NotNull String name, long refreshMs) {
         this.name = name;
@@ -71,8 +79,8 @@ public final class Leaderboard<K> implements Managed {
             long[] c = scores.get(key);
             if (c == null) return -1;
             refreshIfNeeded(snapshotCap == 0 ? DEFAULT_CAP : snapshotCap);
-            Integer r = topRanks.get(key);
-            if (r != null) return r;
+            long stamp = c[1];
+            if (stamp != 0L && (int) (stamp >>> 32) == generation) return (int) (stamp & RANK_MASK);
             long s = c[0];
             int greater = 0;
             for (long[] o : scores.values()) if (o[0] > s) greater++;
@@ -80,23 +88,27 @@ public final class Leaderboard<K> implements Managed {
         }
     }
 
+    /** @return les {@code n} premiers du snapshot, sans copie (vue immuable). */
     @NotNull
     @Unmodifiable
     public List<LeaderboardEntry<K>> top(int n) {
         synchronized (lock) {
             refreshIfNeeded(n);
             queries++;
-            int size = Math.min(n, snapshot.size());
-            if (size <= 0) return Collections.emptyList();
-            return Collections.unmodifiableList(new ArrayList<>(snapshot.subList(0, size)));
+            List<LeaderboardEntry<K>> s = snapshot;
+            if (n <= 0 || s.isEmpty()) return Collections.emptyList();
+            return n >= s.size() ? s : s.subList(0, n);
         }
+    }
+
+    /** @return génération du snapshot publié : change à chaque recalcul (détection de changement sans copie). */
+    public int generation() {
+        synchronized (lock) { return generation; }
     }
 
     public void remove(@NotNull K key) {
         synchronized (lock) {
-            scores.remove(key);
-            topRanks.remove(key);
-            dirty = true;
+            if (scores.remove(key) != null) dirty = true;
         }
     }
 
@@ -110,10 +122,13 @@ public final class Leaderboard<K> implements Managed {
     public void invalidateAll() {
         synchronized (lock) {
             scores.clear();
-            topRanks.clear();
             snapshot = Collections.emptyList();
             snapshotCap = 0;
+            generation++;
             dirty = true;
+            heapKeys = new Object[0];
+            heapScores = new long[0];
+            heapCells = new long[0][];
         }
     }
 
@@ -128,38 +143,97 @@ public final class Leaderboard<K> implements Managed {
     }
 
     private long[] cell(@NotNull K key) {
-        return scores.computeIfAbsent(key, k -> new long[1]);
+        return scores.computeIfAbsent(key, k -> new long[2]);
     }
 
+    /**
+     * Sous verrou. Une écriture déclenche toujours un recalcul (les lectures persistent l'état exact, ex. sauvegarde
+     * des votes par {@code top(estimatedSize())}) ; sans écriture, le snapshot est réutilisé pendant
+     * {@code refreshMs}.
+     */
     private void refreshIfNeeded(int wantN) {
         long now = System.currentTimeMillis();
         if (!dirty && wantN <= snapshotCap && now - lastRefresh < refreshMs) return;
         int cap = Math.max(wantN, DEFAULT_CAP);
-        PriorityQueue<LeaderboardEntry<K>> heap = new PriorityQueue<>(
-                Math.min(cap, scores.size()) + 1, Comparator.comparingLong(LeaderboardEntry::score));
+        int limit = Math.min(cap, scores.size());
+        ensureHeap(limit);
+        Object[] hk = heapKeys;
+        long[] hs = heapScores;
+        long[][] hc = heapCells;
+
+        int size = 0;
         for (Map.Entry<K, long[]> e : scores.entrySet()) {
-            long v = e.getValue()[0];
-            if (heap.size() < cap) {
-                heap.offer(new LeaderboardEntry<>(e.getKey(), v, 0));
-            } else if (v > heap.peek().score()) {
-                heap.poll();
-                heap.offer(new LeaderboardEntry<>(e.getKey(), v, 0));
+            long[] c = e.getValue();
+            long v = c[0];
+            if (size < limit) {
+                hk[size] = e.getKey();
+                hs[size] = v;
+                hc[size] = c;
+                siftUp(hk, hs, hc, size++);
+            } else if (limit > 0 && v > hs[0]) {
+                hk[0] = e.getKey();
+                hs[0] = v;
+                hc[0] = c;
+                siftDown(hk, hs, hc, 0, size);
             }
         }
-        int size = heap.size();
-        List<LeaderboardEntry<K>> desc = new ArrayList<>(size);
-        for (int i = 0; i < size; i++) desc.add(null);
-        for (int i = size - 1; i >= 0; i--) desc.set(i, heap.poll());
-        topRanks.clear();
-        List<LeaderboardEntry<K>> out = new ArrayList<>(size);
-        for (int r = 0; r < size; r++) {
-            LeaderboardEntry<K> e = new LeaderboardEntry<>(desc.get(r).key(), desc.get(r).score(), r + 1);
-            out.add(e);
-            topRanks.put(e.key(), r + 1);
+        // Tri en place : le minimum part en fin de tableau à chaque passe → ordre décroissant.
+        for (int end = size - 1; end > 0; end--) {
+            swap(hk, hs, hc, 0, end);
+            siftDown(hk, hs, hc, 0, end);
         }
-        snapshot = out;
+
+        int gen = generation + 1;
+        @SuppressWarnings("unchecked")
+        LeaderboardEntry<K>[] out = (LeaderboardEntry<K>[]) new LeaderboardEntry<?>[size];
+        long stampBase = (long) gen << 32;
+        for (int r = 0; r < size; r++) {
+            @SuppressWarnings("unchecked")
+            K key = (K) hk[r];
+            out[r] = new LeaderboardEntry<>(key, hs[r], r + 1);
+            hc[r][1] = stampBase | (r + 1);
+            hk[r] = null; // pas de rétention des clés entre deux calculs
+            hc[r] = null;
+        }
+        snapshot = size == 0 ? Collections.emptyList() : Collections.unmodifiableList(Arrays.asList(out));
         snapshotCap = cap;
+        generation = gen;
         lastRefresh = now;
         dirty = false;
+    }
+
+    /** Agrandit les tampons si besoin ; les rend s'ils sont devenus très surdimensionnés. */
+    private void ensureHeap(int n) {
+        int len = heapScores.length;
+        if (len >= n && len <= Math.max(64, n << 2)) return;
+        heapKeys = new Object[n];
+        heapScores = new long[n];
+        heapCells = new long[n][];
+    }
+
+    private static void siftUp(Object[] k, long[] s, long[][] c, int i) {
+        while (i > 0) {
+            int p = (i - 1) >>> 1;
+            if (s[p] <= s[i]) return;
+            swap(k, s, c, p, i);
+            i = p;
+        }
+    }
+
+    private static void siftDown(Object[] k, long[] s, long[][] c, int i, int size) {
+        while (true) {
+            int l = (i << 1) + 1;
+            if (l >= size) return;
+            int m = l + 1 < size && s[l + 1] < s[l] ? l + 1 : l;
+            if (s[i] <= s[m]) return;
+            swap(k, s, c, i, m);
+            i = m;
+        }
+    }
+
+    private static void swap(Object[] k, long[] s, long[][] c, int a, int b) {
+        Object tk = k[a]; k[a] = k[b]; k[b] = tk;
+        long ts = s[a]; s[a] = s[b]; s[b] = ts;
+        long[] tc = c[a]; c[a] = c[b]; c[b] = tc;
     }
 }

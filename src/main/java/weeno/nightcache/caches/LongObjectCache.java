@@ -218,21 +218,36 @@ public final class LongObjectCache<V> implements Managed {
         if (keys.length > 64 && size < keys.length >>> 3) rebuild(Math.max(16, size << 1));
     }
 
+    /**
+     * Recopie les entrées vivantes, dans l'ordre LRU, directement dans des tableaux neufs de {@code capacity}
+     * cases (indices compactés 0..n-1) : aucun tableau temporaire ni recherche de hachage par entrée.
+     */
     private void rebuild(int capacity) {
-        long[] k = new long[size];
-        Object[] v = new Object[size];
-        long[] e = expires != null ? new long[size] : null;
+        long[] oldKeys = keys;
+        Object[] oldValues = values;
+        long[] oldExpires = expires;
+        int[] oldAfter = after;
+        int from = head;
+        allocate(Math.max(capacity, size));
+        int mask = table.length - 1;
         int n = 0;
-        for (int i = head; i != NONE; i = after[i]) {
-            k[n] = keys[i];
-            v[n] = values[i];
-            if (e != null) e[n] = expires[i];
+        for (int i = from; i != NONE; i = oldAfter[i]) {
+            long k = oldKeys[i];
+            keys[n] = k;
+            values[n] = oldValues[i];
+            if (oldExpires != null) expires[n] = oldExpires[i];
+            int b = mix(k) & mask;
+            chain[n] = table[b];
+            table[b] = n;
+            before[n] = n - 1; // NONE (-1) pour le premier
+            after[n] = NONE;
+            if (n > 0) after[n - 1] = n;
             n++;
         }
-        allocate(capacity);
-        for (int j = 0; j < n; j++) {
-            insert(k[j], v[j]);
-            if (e != null) expires[tail] = e[j];
+        if (n > 0) {
+            head = 0;
+            tail = n - 1;
         }
+        used = size = n;
     }
 }

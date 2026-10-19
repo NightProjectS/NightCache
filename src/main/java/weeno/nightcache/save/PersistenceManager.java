@@ -110,7 +110,9 @@ public final class PersistenceManager {
         ticks++;
         if (ticks % AUTOSAVE_TICKS == 0) flushAll();
         if (ticks % SWEEP_TICKS == 0) PlayerStates.sweep();
-        for (PlayerBinding<?> binding : BINDINGS) {
+        // Boucle indexée : pas d'itérateur alloué à chaque tick (la liste n'est modifiée que sur ce thread).
+        for (int i = 0; i < BINDINGS.size(); i++) {
+            PlayerBinding<?> binding = BINDINGS.get(i);
             try {
                 binding.tick(PersistenceManager::submit);
             } catch (RuntimeException e) {

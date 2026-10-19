@@ -44,6 +44,8 @@ public final class AsyncLeaderboard<K> {
     private volatile List<LeaderboardEntry<K>> top = Collections.emptyList();
     private volatile Map<K, Integer> ranks = Collections.emptyMap();
     private volatile Runnable task;
+    /** Génération du dernier top publié (thread async uniquement). */
+    private volatile int publishedGeneration = -1;
 
     public AsyncLeaderboard(@NotNull String name, int topN, long refreshMs, long periodTicks) {
         this.delegate = new Leaderboard<>(name, refreshMs);
@@ -111,10 +113,16 @@ public final class AsyncLeaderboard<K> {
             else delegate.add(u.key, u.value);
         }
         List<LeaderboardEntry<K>> snap = delegate.top(topN);
+        int gen = delegate.generation();
+        if (gen == publishedGeneration) return; // top inchangé : rien à republier ni à allouer
         Map<K, Integer> r = new HashMap<>(Math.max(16, snap.size() * 2));
-        for (LeaderboardEntry<K> e : snap) r.put(e.key(), e.rank());
+        for (int i = 0, n = snap.size(); i < n; i++) {
+            LeaderboardEntry<K> e = snap.get(i);
+            r.put(e.key(), e.rank());
+        }
         this.top = snap;
         this.ranks = r;
+        publishedGeneration = gen;
     }
 
     /** Vide le classement (scores, top publié, rangs, mises à jour en attente). */
@@ -123,5 +131,6 @@ public final class AsyncLeaderboard<K> {
         delegate.invalidateAll();
         top = Collections.emptyList();
         ranks = Collections.emptyMap();
+        publishedGeneration = -1;
     }
 }

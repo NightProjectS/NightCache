@@ -13,6 +13,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.List;
+import java.util.jar.JarFile;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -68,11 +69,14 @@ public final class NightCacheLibrary {
             boolean autoUpdate = cfg == null || cfg.getBoolean("auto-update", true);
             String releases = cfg == null ? DEFAULT_RELEASES : cfg.getString("releases", DEFAULT_RELEASES);
 
-            if (autoUpdate) update(log, releases, jar, versionFile, embedded.api());
+            if (autoUpdate) update(log, releases, jar, versionFile, embedded);
             LibraryJar local = LibraryJar.inspect(jar);
-            if (local == null || local.api() != embedded.api()) {
-                if (local != null) log.warning("[NightCache] libs/" + JAR + " (API " + local.api() + ") incompatible, copie embarquée utilisée.");
-                Files.copy(embedded.path(), jar, StandardCopyOption.REPLACE_EXISTING);
+            if (!usable(local, embedded)) {
+                if (local != null) {
+                    log.warning("[NightCache] libs/" + JAR + " " + local.version() + " (API " + local.api() + ") plus ancien que la copie "
+                            + "embarquée " + embedded.version() + " ou incompatible : copie embarquée utilisée.");
+                }
+                install(embedded.path(), jar);
                 Files.writeString(versionFile, embedded.version(), StandardCharsets.UTF_8);
                 local = LibraryJar.inspect(jar);
                 if (local == null) throw new IllegalStateException("copie embarquée illisible");
@@ -84,46 +88,87 @@ public final class NightCacheLibrary {
             return local.version();
         } catch (IOException | RuntimeException e) {
             throw new IllegalStateException("NightCache n'a pas pu être chargé depuis " + libs, e);
-        } finally {
-            deleteQuietly(libs.resolve(JAR + ".part"), log);
         }
+    }
+
+    /**
+     * Copie utilisable : même major d'API que la copie embarquée et jamais plus ancienne qu'elle (le plugin est
+     * compilé contre l'embarquée : une version antérieure pourrait manquer de méthodes, d'où NoSuchMethodError).
+     */
+    static boolean usable(@Nullable LibraryJar local, @NotNull LibraryJar embedded) {
+        return local != null && local.api() == embedded.api() && LibraryJar.compareVersions(local.version(), embedded.version()) >= 0;
     }
 
     /** Jar de secours livré dans le plugin, extrait à côté (le lire en place est impossible depuis le jar). */
     private static @NotNull LibraryJar embedded(@NotNull JavaPlugin plugin, @NotNull Path libs) throws IOException {
         Path out = libs.resolve(CACHE_DIR).resolve("embedded.jar");
         Files.createDirectories(out.getParent());
-        try (InputStream in = plugin.getResource(EMBEDDED)) {
-            if (in == null) throw new IOException("ressource " + EMBEDDED + " absente du plugin");
-            Files.copy(in, out, StandardCopyOption.REPLACE_EXISTING);
+        Path tmp = Files.createTempFile(out.getParent(), "embedded", ".part");
+        try {
+            try (InputStream in = plugin.getResource(EMBEDDED)) {
+                if (in == null) throw new IOException("ressource " + EMBEDDED + " absente du plugin");
+                Files.copy(in, tmp, StandardCopyOption.REPLACE_EXISTING);
+            }
+            install(tmp, out);
+        } finally {
+            deleteQuietly(tmp, null);
         }
         LibraryJar jar = LibraryJar.inspect(out);
         if (jar == null) throw new IOException("ressource " + EMBEDDED + " invalide");
         return jar;
     }
 
-    private static void update(@NotNull Logger log, @NotNull String releases, @NotNull Path jar, @NotNull Path versionFile, int api) {
+    private static void update(@NotNull Logger log, @NotNull String releases, @NotNull Path jar, @NotNull Path versionFile,
+                               @NotNull LibraryJar embedded) {
+        Path part = null;
         try {
             String remote = ReleaseClient.latestVersion(releases);
             String current = Files.isRegularFile(versionFile) ? Files.readString(versionFile, StandardCharsets.UTF_8).trim() : "";
-            if (remote.equals(current) && LibraryJar.inspect(jar) != null) return;
+            if (remote.equals(current) && usable(LibraryJar.inspect(jar), embedded)) return;
             int remoteApi = LibraryJar.major(remote);
-            if (remoteApi != api) {
-                log.warning("[NightCache] release " + remote + " ignorée : API " + remoteApi + ", ce plugin attend l'API " + api + '.');
+            if (remoteApi != embedded.api()) {
+                log.warning("[NightCache] release " + remote + " ignorée : API " + remoteApi + ", ce plugin attend l'API " + embedded.api() + '.');
                 return;
             }
-            Path part = jar.resolveSibling(JAR + ".part");
+            if (LibraryJar.compareVersions(remote, embedded.version()) < 0) {
+                log.warning("[NightCache] release " + remote + " ignorée : plus ancienne que la copie embarquée " + embedded.version() + '.');
+                return;
+            }
+            part = Files.createTempFile(jar.getParent(), "NightCache", ".part"); // nom unique : dossier partagé possible
             ReleaseClient.download(releases, remote, part);
             LibraryJar downloaded = LibraryJar.inspect(part);
-            if (downloaded == null || downloaded.api() != api || !downloaded.version().equals(remote)) {
+            if (downloaded == null || downloaded.api() != embedded.api() || !downloaded.version().equals(remote)) {
                 log.warning("[NightCache] release " + remote + " rejetée : jar invalide ou manifeste incohérent.");
                 return;
             }
-            Files.move(part, jar, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+            install(part, jar);
             Files.writeString(versionFile, remote, StandardCharsets.UTF_8);
             log.info("[NightCache] mis à jour : " + (current.isEmpty() ? "?" : current) + " -> " + remote);
         } catch (IOException | RuntimeException e) {
             log.log(Level.WARNING, "[NightCache] mise à jour impossible (" + e.getMessage() + "), copie locale conservée.");
+        } finally {
+            if (part != null) deleteQuietly(part, log);
+        }
+    }
+
+    /**
+     * Remplace {@code target} par {@code source} de façon atomique. Si un autre serveur partageant le dossier l'a
+     * remplacé au même instant et que le résultat est un jar valide, ce n'est pas une erreur.
+     */
+    private static void install(@NotNull Path source, @NotNull Path target) throws IOException {
+        try {
+            Files.move(source, target, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+        } catch (IOException e) {
+            if (Files.isRegularFile(target) && isJar(target)) return;
+            throw e;
+        }
+    }
+
+    private static boolean isJar(@NotNull Path p) {
+        try (JarFile ignored = new JarFile(p.toFile())) {
+            return true;
+        } catch (IOException e) {
+            return false;
         }
     }
 
@@ -138,9 +183,14 @@ public final class NightCacheLibrary {
                 + Integer.toHexString(RULES.hashCode()) + ".jar";
         Path target = dir.resolve(name);
         if (!Files.isRegularFile(target) || LibraryJar.inspectRelocated(target, RELOCATED) == null) {
-            Path tmp = dir.resolve(name + ".part");
-            JarRelocator.relocate(source.path(), tmp, RULES);
-            Files.move(tmp, target, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+            Path tmp = Files.createTempFile(dir, "relocating", ".part"); // nom unique : dossier partagé possible
+            try {
+                JarRelocator.relocate(source.path(), tmp, RULES);
+                install(tmp, target);
+            } finally {
+                deleteQuietly(tmp, null);
+            }
+            if (LibraryJar.inspectRelocated(target, RELOCATED) == null) throw new IOException("jar relocalisé invalide : " + target);
         }
         try (DirectoryStream<Path> old = Files.newDirectoryStream(dir, "NightCache-*.jar")) {
             for (Path p : old) if (!p.equals(target)) deleteQuietly(p, null);

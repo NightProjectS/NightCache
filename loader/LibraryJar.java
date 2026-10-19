@@ -60,6 +60,21 @@ record LibraryJar(@NotNull Path path, @NotNull String version, int api, @NotNull
         return parse(dot < 0 ? version : version.substring(0, dot));
     }
 
+    /**
+     * async-safe; comparaison numérique {@code major.minor.build} ({@code 1.0.10 > 1.0.9}), composantes absentes à 0.
+     * Une composante illisible vaut -1 : une version illisible est toujours la plus ancienne.
+     */
+    static int compareVersions(@NotNull String a, @NotNull String b) {
+        String[] pa = a.split("\\.", -1);
+        String[] pb = b.split("\\.", -1);
+        for (int i = 0, n = Math.max(pa.length, pb.length); i < n; i++) {
+            int x = i < pa.length ? parse(pa[i]) : 0;
+            int y = i < pb.length ? parse(pb[i]) : 0;
+            if (x != y) return Integer.compare(x, y);
+        }
+        return 0;
+    }
+
     /** async-safe; empreinte hexadécimale en minuscules, lecture par tampon réutilisé. */
     static @NotNull String sha256(@NotNull Path path) throws IOException {
         MessageDigest md = digest();

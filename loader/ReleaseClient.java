@@ -26,6 +26,8 @@ final class ReleaseClient {
     private static final int READ_TIMEOUT_MS = 15_000;
     private static final int MAX_TEXT = 256;
     private static final long MAX_JAR = 32L * 1024 * 1024;
+    /** Durée totale maximale d'un téléchargement : le démarrage du serveur attend au plus ce délai. */
+    private static final long TOTAL_TIMEOUT_NS = 60_000_000_000L;
     private static final Pattern VERSION = Pattern.compile("\\d+\\.\\d+\\.\\d+");
     private static final Pattern SHA = Pattern.compile("[0-9a-f]{64}");
 
@@ -46,12 +48,15 @@ final class ReleaseClient {
         if (!SHA.matcher(expected).matches()) throw new IOException("empreinte distante illisible");
         MessageDigest md = LibraryJar.digest();
         HttpURLConnection c = open(base + "NightCache.jar");
+        long deadline = System.nanoTime() + TOTAL_TIMEOUT_NS;
         try (InputStream in = c.getInputStream(); OutputStream os = Files.newOutputStream(out)) {
             byte[] buf = new byte[64 * 1024];
             long total = 0;
             for (int n; (n = in.read(buf)) > 0; ) {
                 total += n;
                 if (total > MAX_JAR) throw new IOException("jar distant trop volumineux");
+                // Le délai de lecture repart à chaque paquet : une connexion qui goutte est coupée ici.
+                if (System.nanoTime() - deadline > 0) throw new IOException("téléchargement trop lent (> 60 s)");
                 md.update(buf, 0, n);
                 os.write(buf, 0, n);
             }

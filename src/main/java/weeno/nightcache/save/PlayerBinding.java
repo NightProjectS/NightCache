@@ -103,14 +103,15 @@ public final class PlayerBinding<V> {
     public void tick(@NotNull Consumer<Runnable> executor) {
         Result<V> result;
         while ((result = completed.poll()) != null) apply(result);
-        if (inFlight || clock.getAsLong() - retryAt < 0) return;
-        List<UUID> read = new ArrayList<>(BATCH_SIZE);
+        // Cas courant (rien en attente) : retour immédiat, aucune allocation à chaque tick.
+        if (inFlight || (loads.isEmpty() && saves.isEmpty()) || clock.getAsLong() - retryAt < 0) return;
+        List<UUID> read = loads.isEmpty() ? List.of() : new ArrayList<>(Math.min(BATCH_SIZE, loads.size()));
         for (Iterator<UUID> it = loads.iterator(); it.hasNext() && read.size() < BATCH_SIZE;) {
             UUID id = it.next();
             it.remove();
             if (wanted(id) && cache.getIfPresent(id) == null) read.add(id);
         }
-        Map<UUID, V> write = new LinkedHashMap<>();
+        Map<UUID, V> write = saves.isEmpty() ? Map.of() : new LinkedHashMap<>(capacityFor(Math.min(BATCH_SIZE, saves.size())));
         for (Iterator<UUID> it = saves.iterator(); it.hasNext() && write.size() < BATCH_SIZE;) {
             UUID id = it.next();
             it.remove();
@@ -178,6 +179,9 @@ public final class PlayerBinding<V> {
 
     /** main-thread-only */
     private boolean wanted(@NotNull UUID id) { return online.contains(id) || pins.containsKey(id); }
+
+    /** Capacité initiale d'une table de hachage pour {@code n} entrées sans redimensionnement (facteur 0,75). */
+    private static int capacityFor(int n) { return (int) (n / 0.75f) + 1; }
 
     /** main-thread-only; returned job is async-safe and contains detached values only. */
     public @NotNull Runnable finalSave() {
