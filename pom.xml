@@ -33,6 +33,10 @@
         <bukkit.version>1.8.8-R0.1-SNAPSHOT</bukkit.version>
         <!-- 2e pilote des tests de stockage (serveurs récents). -->
         <sqlite.recent.version>3.45.3.0</sqlite.recent.version>
+        <!-- Compatibilité binaire contre la dernière release publiée (jar téléchargé par la CI). -->
+        <japicmp.baseline>${project.build.directory}/baseline/NightCache.jar</japicmp.baseline>
+        <japicmp.skip>true</japicmp.skip>
+        <japicmp.current>${project.build.directory}/NightCache.jar</japicmp.current>
     </properties>
 
     <repositories>
@@ -70,6 +74,45 @@
                     <compilerArgs>
                         <arg>-Xlint:all,-processing,-serial,-deprecation,-removal</arg>
                     </compilerArgs>
+                </configuration>
+            </plugin>
+            <!--
+              Compatibilité binaire de l'API 1.x : la CI télécharge la dernière release dans target/baseline/ et lance
+              le build avec -Djapicmp.skip=false ; toute suppression ou modification incompatible fait échouer le build.
+            -->
+            <plugin>
+                <groupId>com.github.siom79.japicmp</groupId>
+                <artifactId>japicmp-maven-plugin</artifactId>
+                <version>0.23.1</version>
+                <executions>
+                    <execution>
+                        <id>api-compat</id>
+                        <phase>verify</phase>
+                        <goals>
+                            <goal>cmp</goal>
+                        </goals>
+                    </execution>
+                </executions>
+                <configuration>
+                    <skip>${japicmp.skip}</skip>
+                    <oldVersion>
+                        <file>
+                            <path>${japicmp.baseline}</path>
+                        </file>
+                    </oldVersion>
+                    <newVersion>
+                        <file>
+                            <path>${japicmp.current}</path>
+                        </file>
+                    </newVersion>
+                    <parameter>
+                        <onlyModified>true</onlyModified>
+                        <breakBuildOnBinaryIncompatibleModifications>true</breakBuildOnBinaryIncompatibleModifications>
+                        <ignoreMissingClasses>true</ignoreMissingClasses>
+                        <excludes>
+                            <exclude>weeno.nightcache.libs.*</exclude>
+                        </excludes>
+                    </parameter>
                 </configuration>
             </plugin>
             <!-- Chargeur de référence (loader/, copié dans les plugins) compilé et testé avec les tests. -->

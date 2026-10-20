@@ -6,6 +6,9 @@ name: release
 on:
   push:
     branches: [main]
+    # Un commit qui ne touche que la documentation ne publie pas de release.
+    paths-ignore:
+      - '**.md'
   workflow_dispatch:
 
 permissions:
@@ -49,8 +52,20 @@ jobs:
           echo "VERSION=$V" >> "$GITHUB_ENV"
           echo "Version publiée : $V"
 
+      - name: Dernière release (référence de compatibilité binaire)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p target/baseline
+          if gh release download --pattern NightCache.jar -D target/baseline; then
+            echo "JAPICMP=-Djapicmp.skip=false" >> "$GITHUB_ENV"
+          else
+            echo "::warning::aucune release publiée : contrôle japicmp sauté"
+          fi
+
+      # Tests (SQLite 3.7.2 puis 3.45) et japicmp : échec sur toute suppression ou modification incompatible.
       - name: Build
-        run: mvn -B -Drevision="$VERSION" package
+        run: mvn -B -Drevision="$VERSION" $JAPICMP verify
 
       - name: Vérifier le jar
         run: |
@@ -72,6 +87,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          if gh release view "v$VERSION" >/dev/null 2>&1; then echo "release v$VERSION déjà publiée"; exit 0; fi
           gh release create "v$VERSION" dist/NightCache.jar dist/NightCache.jar.sha256 dist/version.txt \
             --target "$GITHUB_SHA" --title "NightCache $VERSION" --latest \
             --notes "Build ${{ github.run_number }} de ${GITHUB_SHA::7}. Les plugins le téléchargent automatiquement au prochain démarrage."

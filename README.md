@@ -59,4 +59,6 @@ Exemple complet : NeptaliaCore (`weeno.neptaliacore.core.libs`).
 
 ## Build
 
-`mvn package -Drevision=1.0.0` → `target/NightCache.jar` (tests compris, SQLite 3.7.2). Vérification Paper 1.21.11 : `mvn -Pmc-latest compile`.
+`mvn verify -Drevision=1.0.0` → `target/NightCache.jar` (tests sur SQLite 3.7.2 puis 3.45, chargeur `loader/` compris).
+Compatibilité binaire : jar de la dernière release dans `target/baseline/NightCache.jar`, puis `-Djapicmp.skip=false`.
+Vérification Paper 1.21.11 : `mvn -Pmc-latest compile`.
