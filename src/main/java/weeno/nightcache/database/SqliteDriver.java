@@ -33,4 +33,14 @@ public final class SqliteDriver {
         if (c == null) throw new SQLException("URL SQLite non reconnue : " + url);
         return c;
     }
+
+    /** Retire de {@code DriverManager} les pilotes chargés par ce classloader isolé (appelé au shutdown). */
+    public static void deregister() throws SQLException {
+        ClassLoader own = SqliteDriver.class.getClassLoader();
+        Enumeration<Driver> registered = DriverManager.getDrivers();
+        while (registered.hasMoreElements()) {
+            Driver d = registered.nextElement();
+            if (d.getClass().getClassLoader() == own) DriverManager.deregisterDriver(d);
+        }
+    }
 }
