@@ -223,7 +223,8 @@ public final class PersistenceManager {
 
     /**
      * Exécute {@code call} sur le writer et en renvoie le résultat. Sur le writer : appel direct ;
-     * ailleurs : redirection + attente bornée (30 s). Après l'arrêt du writer : appel direct.
+     * ailleurs : redirection + attente bornée (30 s). Après l'arrêt du writer : appel direct, mais seulement une fois
+     * le writer terminé (pendant la sauvegarde finale, l'appel attend au lieu de partager la connexion avec lui).
      * Thread: thread-safe. Usage interne des stores.
      */
     @ApiStatus.Internal
@@ -232,14 +233,17 @@ public final class PersistenceManager {
             if (Thread.currentThread() == writer) return call.call();
             ThreadPoolExecutor ex = io;
             if (ex == null && !stopping) ex = executor();
-            if (ex == null || ex.isShutdown()) {
-                synchronized (PersistenceManager.class) { return call.call(); }
-            }
+            if (ex == null || ex.isShutdown()) return afterWriter(ex, call);
             if (runtime && !stopping && Platform.isPrimaryThread() && WARNED.add(store + '/' + op)) {
                 Log.warning("I/O SQLite synchrone sur le main thread (" + store + "." + op
                         + ") : utiliser PersistenceManager.async(...)");
             }
-            Future<T> f = ex.submit(call::call);
+            Future<T> f;
+            try {
+                f = ex.submit(call::call);
+            } catch (RejectedExecutionException closing) { // arrêt du writer entre le test et l'envoi
+                return afterWriter(ex, call);
+            }
             return f.get(BLOCKING_TIMEOUT_MS, TimeUnit.MILLISECONDS);
         } catch (ExecutionException e) {
             throw new IllegalStateException(op + " / store " + store, e.getCause());
@@ -252,6 +256,16 @@ public final class PersistenceManager {
             throw e;
         } catch (Exception e) {
             throw new IllegalStateException(op + " / store " + store, e);
+        }
+    }
+
+    /** Appel direct une fois le writer terminé (jamais en parallèle de lui), sous verrou. */
+    private static <T> T afterWriter(@Nullable ThreadPoolExecutor ex, @NotNull SqlCall<T> call) throws Exception {
+        if (ex != null && !ex.awaitTermination(BLOCKING_TIMEOUT_MS, TimeUnit.MILLISECONDS)) {
+            throw new TimeoutException("writer en cours d'arrêt");
+        }
+        synchronized (PersistenceManager.class) {
+            return call.call();
         }
     }
 

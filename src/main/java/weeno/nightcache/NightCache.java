@@ -74,12 +74,21 @@ public final class NightCache {
      * vide caches, états joueur, jauges et threads de la lib. Thread: main-thread-only.
      */
     public static void disable() {
-        PersistenceManager.shutdown();
-        CacheManager.shutdown();
-        PlayerStates.shutdown();
-        DiagSnapshot.clearGauges();
-        Platform.shutdown();
+        // Chaque étape s'exécute même si une précédente échoue : aucune structure statique ni thread ne doit survivre.
+        step("persistance", PersistenceManager::shutdown);
+        step("caches", CacheManager::shutdown);
+        step("états joueur", PlayerStates::shutdown);
+        step("jauges", DiagSnapshot::clearGauges);
+        step("timers", Platform::shutdown);
         listening = false; // le listener est désenregistré par Bukkit avec le plugin
         Log.bind(null);
+    }
+
+    private static void step(@NotNull String what, @NotNull Runnable r) {
+        try {
+            r.run();
+        } catch (RuntimeException e) {
+            Log.severe("arrêt (" + what + ")", e);
+        }
     }
 }
