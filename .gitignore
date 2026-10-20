@@ -3,3 +3,7 @@ dist/
 .idea/
 *.iml
 .DS_Store
+
+# Dossiers « . » locaux (IDE, Claude, Gradle…) jamais versionnés ; .github reste suivi pour la CI
+.*/
+!.github/
