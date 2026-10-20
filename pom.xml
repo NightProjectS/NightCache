@@ -108,6 +108,8 @@
                 <version>3.2.5</version>
                 <configuration>
                     <workingDirectory>${project.build.directory}/surefire-work</workingDirectory>
+                    <!-- Une JVM par classe : état statique de la lib, Bukkit factice et pilote natif SQLite isolés. -->
+                    <reuseForks>false</reuseForks>
                     <systemPropertyVariables>
                         <nightcache.sqlite>3.7</nightcache.sqlite>
                         <nightcache.basedir>${project.basedir}</nightcache.basedir>

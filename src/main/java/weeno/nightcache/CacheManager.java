@@ -44,10 +44,14 @@ public final class CacheManager {
 
     private CacheManager() {}
 
-    /** Démarre le janitor async. Idempotent. */
-    public static void init(@NotNull Plugin pl) {
+    /**
+     * Démarre le janitor async et les leaderboards async créés avant l'init (sans plugin connu, ils n'étaient
+     * jamais rafraîchis). Idempotent.
+     */
+    public static synchronized void init(@NotNull Plugin pl) {
         shuttingDown = false;
         plugin = pl;
+        for (AsyncLeaderboard<?> lb : ASYNC_LB.values()) lb.start(pl);
         if (janitor != null) return;
         // thread démon de la lib (jamais le pool async Bukkit, absent sur Folia)
         janitor = Platform.asyncTimer("janitor", CacheManager::janitorTick, JANITOR_PERIOD_MS);
@@ -92,14 +96,14 @@ public final class CacheManager {
         return (ObjectLongCache<K>) CACHES.computeIfAbsent(name, k -> new ObjectLongCache<K>(name, maxSize, ttlMs, defaultValue));
     }
 
-    /** Classement {@code K → score} avec lecture top-N triée (throttle {@code refreshMs}). */
+    /** Classement {@code K → score} avec lecture top-N triée, recalculée seulement après une écriture. */
     @NotNull
     @SuppressWarnings("unchecked")
     public static <K> Leaderboard<K> leaderboard(@NotNull String name, long refreshMs) {
         return (Leaderboard<K>) CACHES.computeIfAbsent(name, k -> new Leaderboard<K>(name, refreshMs));
     }
 
-    /** Raccourci : leaderboard avec re-tri throttlé à 1 s. */
+    /** Raccourci : {@link #leaderboard(String, long)} avec la valeur historique de 1 s. */
     @NotNull
     public static <K> Leaderboard<K> leaderboard(@NotNull String name) {
         return leaderboard(name, 1000L);
@@ -194,26 +198,50 @@ public final class CacheManager {
     @Unmodifiable
     public static List<CacheStats> stats() {
         List<CacheStats> out = new ArrayList<>(CACHES.size());
-        CACHES.values().forEach(c -> out.add(c.stats()));
+        for (Managed c : CACHES.values()) {
+            try {
+                out.add(c.stats());
+            } catch (RuntimeException e) {
+                Log.severe("statistiques du cache '" + c.name() + "'", e);
+            }
+        }
         return Collections.unmodifiableList(out);
     }
 
-    /** Stoppe le janitor, les leaderboards async, vide et désenregistre tous les caches et pools. */
-    public static void shutdown() {
+    /**
+     * Stoppe le janitor, les leaderboards async, vide et désenregistre tous les caches et pools. Une erreur d'un
+     * cache (cache spécialisé enregistré par le plugin) est journalisée sans empêcher de vider les autres : les
+     * registres sont toujours vides en sortie.
+     */
+    public static synchronized void shutdown() {
         shuttingDown = true;
         Runnable j = janitor;
-        if (j != null) {
-            j.run();
-            janitor = null;
+        janitor = null;
+        if (j != null) j.run();
+        for (AsyncLeaderboard<?> lb : ASYNC_LB.values()) {
+            try {
+                lb.stop();
+            } catch (RuntimeException e) {
+                Log.severe("arrêt d'un leaderboard async", e);
+            }
         }
-        ASYNC_LB.values().forEach(AsyncLeaderboard::stop);
         ASYNC_LB.clear();
-        CACHES.values().forEach(c -> {
-            c.invalidateAll();
-            c.cleanUp();
-        });
+        for (Managed c : CACHES.values()) {
+            try {
+                c.invalidateAll();
+                c.cleanUp();
+            } catch (RuntimeException e) {
+                Log.severe("vidage du cache '" + c.name() + "'", e);
+            }
+        }
         CACHES.clear();
-        POOLS.values().forEach(ObjectPool::clear);
+        for (ObjectPool<?> p : POOLS.values()) {
+            try {
+                p.clear();
+            } catch (RuntimeException e) {
+                Log.severe("vidage d'un pool", e);
+            }
+        }
         POOLS.clear();
         plugin = null;
     }

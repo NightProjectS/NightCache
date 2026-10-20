@@ -12,6 +12,7 @@ import java.lang.invoke.MethodType;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
 /**
@@ -30,9 +31,10 @@ public final class Platform {
     private static final @Nullable MethodHandle GLOBAL_SCHEDULER;
     private static final @Nullable MethodHandle RUN_AT_FIXED_RATE;
     private static final @Nullable MethodHandle CANCEL_FOLIA;
+    private static final @Nullable MethodHandle EXECUTE_GLOBAL;
 
     static {
-        MethodHandle global = null, fixed = null, cancel = null;
+        MethodHandle global = null, fixed = null, cancel = null, execute = null;
         if (FOLIA) {
             try {
                 MethodHandles.Lookup lookup = MethodHandles.publicLookup();
@@ -43,17 +45,22 @@ public final class Platform {
                         MethodType.methodType(task, Plugin.class, Consumer.class, long.class, long.class));
                 cancel = lookup.findVirtual(task, "cancel", MethodType.methodType(
                         Class.forName("io.papermc.paper.threadedregions.scheduler.ScheduledTask$CancelledState")));
+                execute = lookup.findVirtual(grs, "execute", MethodType.methodType(void.class, Plugin.class, Runnable.class));
             } catch (ReflectiveOperationException | LinkageError e) {
                 Log.severe("API Folia détectée mais inutilisable", e);
-                global = fixed = cancel = null;
+                global = fixed = cancel = execute = null;
             }
         }
         GLOBAL_SCHEDULER = global;
         RUN_AT_FIXED_RATE = fixed;
         CANCEL_FOLIA = cancel;
+        EXECUTE_GLOBAL = execute;
     }
 
     private static volatile @Nullable ScheduledThreadPoolExecutor timers;
+    /** Tâches périodiques actives sur {@link #timers} (sous le verrou de la classe) : à zéro, le thread s'arrête. */
+    private static int activeTimers;
+    private static volatile @Nullable Thread timerThread;
 
     private Platform() {}
 
@@ -92,45 +99,101 @@ public final class Platform {
     }
 
     /**
-     * Répète {@code task} sur le thread démon de la lib (un seul pour tout le plugin).
+     * Exécute {@code task} sur le thread qui possède l'état global de la lib : tout de suite sur Bukkit (l'appelant
+     * est déjà le thread serveur), via le scheduler global sur Folia (les événements joueur y arrivent sur le thread
+     * de la région du joueur, alors que les bindings vivent sur le thread global). Thread: thread-safe.
+     */
+    public static void runGlobal(@NotNull Plugin plugin, @NotNull Runnable task) {
+        if (FOLIA && GLOBAL_SCHEDULER != null && EXECUTE_GLOBAL != null) {
+            try {
+                EXECUTE_GLOBAL.invoke(GLOBAL_SCHEDULER.invoke(), plugin, task);
+                return;
+            } catch (Throwable t) {
+                throw new IllegalStateException("Planification Folia impossible", t);
+            }
+        }
+        task.run();
+    }
+
+    /**
+     * Répète {@code task} sur le thread démon de la lib (un seul pour tout le plugin), créé au premier timer et
+     * arrêté dès que le dernier est annulé : aucun thread ne survit aux arrêts partiels (caches seuls, leaderboard).
      * Le corps ne doit toucher que de l'état thread-safe, jamais l'API Bukkit.
      * Thread: thread-safe.
+     *
+     * @return poignée d'annulation idempotente.
      */
     @NotNull
     public static Runnable asyncTimer(@NotNull String name, @NotNull Runnable task, long periodMillis) {
-        ScheduledThreadPoolExecutor ex = timers();
-        ScheduledFuture<?> f = ex.scheduleWithFixedDelay(() -> {
+        long period = Math.max(1L, periodMillis);
+        Runnable body = () -> {
             try {
                 task.run();
             } catch (Throwable t) {
                 Log.severe("tâche périodique '" + name + "'", t);
             }
-        }, periodMillis, periodMillis, TimeUnit.MILLISECONDS);
-        return () -> f.cancel(false);
+        };
+        ScheduledThreadPoolExecutor ex;
+        ScheduledFuture<?> f;
+        synchronized (Platform.class) {
+            ex = timers();
+            f = ex.scheduleWithFixedDelay(body, period, period, TimeUnit.MILLISECONDS);
+            activeTimers++;
+        }
+        AtomicBoolean cancelled = new AtomicBoolean();
+        return () -> {
+            if (cancelled.compareAndSet(false, true)) release(ex, f);
+        };
     }
 
-    private static synchronized ScheduledThreadPoolExecutor timers() {
+    /** Annule un timer ; arrête le thread s'il n'en reste aucun sur cet executor. */
+    private static void release(@NotNull ScheduledThreadPoolExecutor ex, @NotNull ScheduledFuture<?> f) {
+        ScheduledThreadPoolExecutor idle = null;
+        synchronized (Platform.class) {
+            f.cancel(false);
+            if (timers == ex && --activeTimers <= 0) {
+                activeTimers = 0;
+                timers = null;
+                idle = ex;
+            }
+        }
+        if (idle != null) stop(idle);
+    }
+
+    /** Sous le verrou de la classe. */
+    private static ScheduledThreadPoolExecutor timers() {
         ScheduledThreadPoolExecutor ex = timers;
         if (ex == null || ex.isShutdown()) {
             ex = new ScheduledThreadPoolExecutor(1, r -> {
                 Thread t = new Thread(r, "NightCache-" + Log.owner() + "-timer");
                 t.setDaemon(true);
                 t.setContextClassLoader(null); // ne retient pas le classloader du plugin
+                timerThread = t;
                 return t;
             });
             ex.setRemoveOnCancelPolicy(true); // une tâche annulée ne reste pas dans la file (pas de fuite)
             ex.setExecuteExistingDelayedTasksAfterShutdownPolicy(false);
             timers = ex;
+            activeTimers = 0;
         }
         return ex;
     }
 
     /** Arrête le thread des timers async. Thread: main-thread-only (disable). */
-    public static synchronized void shutdown() {
-        ScheduledThreadPoolExecutor ex = timers;
-        timers = null;
-        if (ex == null) return;
+    public static void shutdown() {
+        ScheduledThreadPoolExecutor ex;
+        synchronized (Platform.class) {
+            ex = timers;
+            timers = null;
+            activeTimers = 0;
+        }
+        if (ex != null) stop(ex);
+    }
+
+    /** Hors verrou : attend (borné) la fin du thread, sauf depuis ce thread lui-même (annulation dans un timer). */
+    private static void stop(@NotNull ScheduledThreadPoolExecutor ex) {
         ex.shutdownNow();
+        if (Thread.currentThread() == timerThread) return;
         try {
             if (!ex.awaitTermination(2, TimeUnit.SECONDS)) Log.warning("thread des timers toujours actif après 2 s");
         } catch (InterruptedException e) {
@@ -139,9 +202,12 @@ public final class Platform {
         }
     }
 
-    /** @return {@code true} si l'appel se fait sur le thread serveur principal (toujours faux sur Folia). */
+    /**
+     * @return {@code true} si l'appel se fait sur le thread serveur principal (toujours faux sur Folia, et hors
+     * serveur, ex. tests).
+     */
     public static boolean isPrimaryThread() {
-        return !FOLIA && Bukkit.isPrimaryThread();
+        return !FOLIA && Bukkit.getServer() != null && Bukkit.isPrimaryThread();
     }
 
     private static boolean classExists(@NotNull String name) {
