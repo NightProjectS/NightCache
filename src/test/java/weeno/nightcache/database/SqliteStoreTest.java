@@ -82,6 +82,26 @@ class SqliteStoreTest {
     }
 
     @Test
+    void singleSavesStillWorkAfterAFailedBatch() {
+        // Régression trouvée avec sqlite-jdbc 3.7.2 : la requête en cache gardait l'état du lot avorté et toutes
+        // les sauvegardes suivantes échouaient (« param count (3) != value count (6) ») jusqu'au redémarrage.
+        SqliteStore<String, String> s = store();
+        Map<String, String> bad = new LinkedHashMap<>();
+        bad.put("a", "1");
+        bad.put("b", "2");
+        bad.put("c", "BOOM");
+        assertThrows(IllegalStateException.class, () -> s.saveAll(bad));
+        s.save("d", "4");
+        s.save("e", "5");
+        assertEquals("4", s.load("d"));
+        assertEquals(2, s.count());
+        assertThrows(IllegalStateException.class, () -> s.save("f", "BOOM"));
+        s.save("g", "7");
+        s.saveAll(Map.of("h", "8"));
+        assertEquals(4, s.count());
+    }
+
+    @Test
     void replaceAllSwapsContentAtomically() {
         SqliteStore<String, String> s = store();
         s.save("old", "x");

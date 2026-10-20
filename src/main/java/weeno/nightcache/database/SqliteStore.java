@@ -77,13 +77,14 @@ public final class SqliteStore<K, V> implements PersistentStore<K, V> {
     public V load(@NotNull K key) {
         return PersistenceManager.onWriter(name, "load", () -> {
             String k = codec.encode(key);
-            PreparedStatement ps = selectOne();
-            ps.setString(1, k);
-            String raw;
-            try (ResultSet rs = ps.executeQuery()) {
-                if (!rs.next()) return null;
-                raw = rs.getString(1);
-            }
+            String raw = guarded(() -> {
+                PreparedStatement ps = selectOne();
+                ps.setString(1, k);
+                try (ResultSet rs = ps.executeQuery()) {
+                    return rs.next() ? rs.getString(1) : null;
+                }
+            });
+            if (raw == null) return null;
             V v = decode(raw);
             if (v == null) quarantine(k, raw);
             return v;
@@ -115,12 +116,16 @@ public final class SqliteStore<K, V> implements PersistentStore<K, V> {
     @Override
     public void save(@NotNull K key, @NotNull V value) {
         PersistenceManager.onWriter(name, "save", () -> {
-            PreparedStatement ps = upsert();
-            ps.setString(1, codec.encode(key));
-            ps.setString(2, serializer.serialize(value));
-            ps.setLong(3, System.currentTimeMillis());
-            ps.executeUpdate();
-            return null;
+            String k = codec.encode(key);
+            String v = serializer.serialize(value); // avant tout paramètre : un échec ici ne touche pas la requête
+            return guarded(() -> {
+                PreparedStatement ps = upsert();
+                ps.setString(1, k);
+                ps.setString(2, v);
+                ps.setLong(3, System.currentTimeMillis());
+                ps.executeUpdate();
+                return null;
+            });
         });
     }
 
@@ -143,10 +148,13 @@ public final class SqliteStore<K, V> implements PersistentStore<K, V> {
     @Override
     public void delete(@NotNull K key) {
         PersistenceManager.onWriter(name, "delete", () -> {
-            PreparedStatement ps = deleteOne();
-            ps.setString(1, codec.encode(key));
-            ps.executeUpdate();
-            return null;
+            String k = codec.encode(key);
+            return guarded(() -> {
+                PreparedStatement ps = deleteOne();
+                ps.setString(1, k);
+                ps.executeUpdate();
+                return null;
+            });
         });
     }
 
@@ -252,6 +260,19 @@ public final class SqliteStore<K, V> implements PersistentStore<K, V> {
         return connection().prepareStatement(sql);
     }
 
+    /**
+     * Exécute une opération sur les requêtes en cache ; si elle échoue, elles sont fermées et seront recompilées :
+     * une requête dans un état incertain (pilote ancien, erreur à mi-parcours) n'est jamais réutilisée.
+     */
+    private <T> T guarded(@NotNull PersistenceManager.SqlCall<T> call) throws Exception {
+        try {
+            return call.call();
+        } catch (Exception e) {
+            closeStatements();
+            throw e;
+        }
+    }
+
     private @NotNull PreparedStatement upsert() throws SQLException {
         PreparedStatement ps = upsert;
         if (ps == null) upsert = ps = connection().prepareStatement(UPSERT);
@@ -292,9 +313,10 @@ public final class SqliteStore<K, V> implements PersistentStore<K, V> {
                 try (Statement st = c.createStatement()) { st.executeUpdate("DELETE FROM data"); }
             }
             if (!entries.isEmpty()) {
-                PreparedStatement ps = upsert();
-                long now = System.currentTimeMillis();
-                try {
+                // Requête dédiée au lot, fermée ensuite : avec sqlite-jdbc 3.7.2 (serveurs 1.8), clearBatch() ne vide
+                // pas les valeurs accumulées, et une requête partagée avec save() casserait toutes les écritures suivantes.
+                try (PreparedStatement ps = c.prepareStatement(UPSERT)) {
+                    long now = System.currentTimeMillis();
                     for (Map.Entry<K, V> e : entries.entrySet()) {
                         ps.setString(1, codec.encode(e.getKey()));
                         ps.setString(2, serializer.serialize(e.getValue()));
@@ -302,8 +324,6 @@ public final class SqliteStore<K, V> implements PersistentStore<K, V> {
                         ps.addBatch();
                     }
                     ps.executeBatch();
-                } finally {
-                    ps.clearBatch(); // requête réutilisée : un lot partiel ou en échec ne doit jamais être rejoué
                 }
             }
             c.commit();
