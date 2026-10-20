@@ -1,0 +1,354 @@
+ctor weeno.nightcache.caches.AsyncLeaderboard(java.lang.String,int,long,long)
+ctor weeno.nightcache.caches.CaffeineCache(weeno.nightcache.objects.CacheSpec)
+ctor weeno.nightcache.caches.Leaderboard(java.lang.String,long)
+ctor weeno.nightcache.caches.LongObjectCache(java.lang.String,long,long)
+ctor weeno.nightcache.caches.ObjectLongCache(java.lang.String,long,long,long)
+ctor weeno.nightcache.database.SqliteStore$Maintenance(java.lang.String,long,boolean,boolean,long,long)
+ctor weeno.nightcache.database.SqliteStore(java.io.File,java.lang.String,weeno.nightcache.utils.KeyCodec,weeno.nightcache.interfaces.Serializer)
+ctor weeno.nightcache.diag.DiagDelta(java.lang.String,long,long)
+ctor weeno.nightcache.diag.DiagSnapshot$Gauge(java.lang.String,long)
+ctor weeno.nightcache.listeners.DataListener()
+ctor weeno.nightcache.objects.CacheStats(java.lang.String,long,long,long,long)
+ctor weeno.nightcache.objects.LeaderboardEntry(java.lang.Object,long,int)
+ctor weeno.nightcache.objects.PoolStats(java.lang.String,int,int)
+ctor weeno.nightcache.save.SnapshotWriter(weeno.nightcache.database.SqliteStore)
+field weeno.nightcache.save.PersistenceManager#static MAX_QUEUE:int
+field weeno.nightcache.utils.JsonRow#static SERIALIZER:weeno.nightcache.interfaces.Serializer
+method weeno.nightcache.CacheManager#static asyncLeaderboard(java.lang.String,int,long)weeno.nightcache.caches.AsyncLeaderboard
+method weeno.nightcache.CacheManager#static asyncLeaderboardCount()int
+method weeno.nightcache.CacheManager#static cache(java.lang.String)weeno.nightcache.interfaces.Managed
+method weeno.nightcache.CacheManager#static cache(weeno.nightcache.objects.CacheSpec)weeno.nightcache.interfaces.ManagedCache
+method weeno.nightcache.CacheManager#static cacheCount()int
+method weeno.nightcache.CacheManager#static init(org.bukkit.plugin.Plugin)void
+method weeno.nightcache.CacheManager#static invalidate(java.lang.String)void
+method weeno.nightcache.CacheManager#static invalidateAll()void
+method weeno.nightcache.CacheManager#static isShuttingDown()boolean
+method weeno.nightcache.CacheManager#static leaderboard(java.lang.String)weeno.nightcache.caches.Leaderboard
+method weeno.nightcache.CacheManager#static leaderboard(java.lang.String,long)weeno.nightcache.caches.Leaderboard
+method weeno.nightcache.CacheManager#static longCache(java.lang.String,long,long)weeno.nightcache.caches.LongObjectCache
+method weeno.nightcache.CacheManager#static objectLongCache(java.lang.String,long,long,long)weeno.nightcache.caches.ObjectLongCache
+method weeno.nightcache.CacheManager#static plugin()org.bukkit.plugin.Plugin
+method weeno.nightcache.CacheManager#static pool(java.lang.String)weeno.nightcache.interfaces.ObjectPool
+method weeno.nightcache.CacheManager#static pool(java.lang.String,java.util.function.Supplier,int)weeno.nightcache.interfaces.ObjectPool
+method weeno.nightcache.CacheManager#static pool(java.lang.String,java.util.function.Supplier,java.util.function.Consumer,int)weeno.nightcache.interfaces.ObjectPool
+method weeno.nightcache.CacheManager#static poolCount()int
+method weeno.nightcache.CacheManager#static poolStats()java.util.List
+method weeno.nightcache.CacheManager#static register(weeno.nightcache.interfaces.Managed)weeno.nightcache.interfaces.Managed
+method weeno.nightcache.CacheManager#static shutdown()void
+method weeno.nightcache.CacheManager#static stats()java.util.List
+method weeno.nightcache.NightCache#static disable()void
+method weeno.nightcache.NightCache#static enable(org.bukkit.plugin.Plugin)void
+method weeno.nightcache.NightCache#static loadOnlinePlayers()void
+method weeno.nightcache.caches.AsyncLeaderboard#add(java.lang.Object,long)void
+method weeno.nightcache.caches.AsyncLeaderboard#estimatedSize()long
+method weeno.nightcache.caches.AsyncLeaderboard#getRank(java.lang.Object)int
+method weeno.nightcache.caches.AsyncLeaderboard#getTop()java.util.List
+method weeno.nightcache.caches.AsyncLeaderboard#getTop(int)java.util.List
+method weeno.nightcache.caches.AsyncLeaderboard#invalidateAll()void
+method weeno.nightcache.caches.AsyncLeaderboard#set(java.lang.Object,long)void
+method weeno.nightcache.caches.AsyncLeaderboard#start(org.bukkit.plugin.Plugin)void
+method weeno.nightcache.caches.AsyncLeaderboard#stop()void
+method weeno.nightcache.caches.BoundedPool#available()int
+method weeno.nightcache.caches.BoundedPool#borrow()java.lang.Object
+method weeno.nightcache.caches.BoundedPool#capacity()int
+method weeno.nightcache.caches.BoundedPool#clear()void
+method weeno.nightcache.caches.BoundedPool#release(java.lang.Object)void
+method weeno.nightcache.caches.BoundedPool#static of(java.util.function.Supplier,int)weeno.nightcache.caches.BoundedPool
+method weeno.nightcache.caches.BoundedPool#static of(java.util.function.Supplier,java.util.function.Consumer,int)weeno.nightcache.caches.BoundedPool
+method weeno.nightcache.caches.CaffeineCache#asMap()java.util.concurrent.ConcurrentMap
+method weeno.nightcache.caches.CaffeineCache#cleanUp()void
+method weeno.nightcache.caches.CaffeineCache#estimatedSize()long
+method weeno.nightcache.caches.CaffeineCache#get(java.lang.Object,java.util.function.Function)java.lang.Object
+method weeno.nightcache.caches.CaffeineCache#getIfPresent(java.lang.Object)java.lang.Object
+method weeno.nightcache.caches.CaffeineCache#invalidate(java.lang.Object)void
+method weeno.nightcache.caches.CaffeineCache#invalidateAll()void
+method weeno.nightcache.caches.CaffeineCache#name()java.lang.String
+method weeno.nightcache.caches.CaffeineCache#put(java.lang.Object,java.lang.Object)void
+method weeno.nightcache.caches.CaffeineCache#stats()weeno.nightcache.objects.CacheStats
+method weeno.nightcache.caches.Leaderboard#add(java.lang.Object,long)long
+method weeno.nightcache.caches.Leaderboard#cleanUp()void
+method weeno.nightcache.caches.Leaderboard#estimatedSize()long
+method weeno.nightcache.caches.Leaderboard#generation()int
+method weeno.nightcache.caches.Leaderboard#invalidateAll()void
+method weeno.nightcache.caches.Leaderboard#name()java.lang.String
+method weeno.nightcache.caches.Leaderboard#rank(java.lang.Object)int
+method weeno.nightcache.caches.Leaderboard#remove(java.lang.Object)void
+method weeno.nightcache.caches.Leaderboard#score(java.lang.Object)long
+method weeno.nightcache.caches.Leaderboard#set(java.lang.Object,long)void
+method weeno.nightcache.caches.Leaderboard#stats()weeno.nightcache.objects.CacheStats
+method weeno.nightcache.caches.Leaderboard#top(int)java.util.List
+method weeno.nightcache.caches.LongObjectCache#cleanUp()void
+method weeno.nightcache.caches.LongObjectCache#containsKey(long)boolean
+method weeno.nightcache.caches.LongObjectCache#estimatedSize()long
+method weeno.nightcache.caches.LongObjectCache#get(long,java.util.function.LongFunction)java.lang.Object
+method weeno.nightcache.caches.LongObjectCache#getIfPresent(long)java.lang.Object
+method weeno.nightcache.caches.LongObjectCache#invalidate(long)void
+method weeno.nightcache.caches.LongObjectCache#invalidateAll()void
+method weeno.nightcache.caches.LongObjectCache#name()java.lang.String
+method weeno.nightcache.caches.LongObjectCache#put(long,java.lang.Object)void
+method weeno.nightcache.caches.LongObjectCache#stats()weeno.nightcache.objects.CacheStats
+method weeno.nightcache.caches.ObjectLongCache#addTo(java.lang.Object,long)long
+method weeno.nightcache.caches.ObjectLongCache#cleanUp()void
+method weeno.nightcache.caches.ObjectLongCache#containsKey(java.lang.Object)boolean
+method weeno.nightcache.caches.ObjectLongCache#estimatedSize()long
+method weeno.nightcache.caches.ObjectLongCache#getLong(java.lang.Object)long
+method weeno.nightcache.caches.ObjectLongCache#invalidate(java.lang.Object)void
+method weeno.nightcache.caches.ObjectLongCache#invalidateAll()void
+method weeno.nightcache.caches.ObjectLongCache#name()java.lang.String
+method weeno.nightcache.caches.ObjectLongCache#put(java.lang.Object,long)void
+method weeno.nightcache.caches.ObjectLongCache#stats()weeno.nightcache.objects.CacheStats
+method weeno.nightcache.database.SqliteConnections#static release()void
+method weeno.nightcache.database.SqliteDriver#static open(java.lang.String)java.sql.Connection
+method weeno.nightcache.database.SqliteStore#close()void
+method weeno.nightcache.database.SqliteStore#count()long
+method weeno.nightcache.database.SqliteStore#delete(java.lang.Object)void
+method weeno.nightcache.database.SqliteStore#initialize()void
+method weeno.nightcache.database.SqliteStore#load(java.lang.Object)java.lang.Object
+method weeno.nightcache.database.SqliteStore#loadAll()java.util.Map
+method weeno.nightcache.database.SqliteStore#maintain()weeno.nightcache.database.SqliteStore$Maintenance
+method weeno.nightcache.database.SqliteStore#name()java.lang.String
+method weeno.nightcache.database.SqliteStore#replaceAll(java.util.Map)void
+method weeno.nightcache.database.SqliteStore#save(java.lang.Object,java.lang.Object)void
+method weeno.nightcache.database.SqliteStore#saveAll(java.util.Map)void
+method weeno.nightcache.database.SqliteStore#trimToNewest(long)long
+method weeno.nightcache.database.SqliteStore$Maintenance#compacted()boolean
+method weeno.nightcache.database.SqliteStore$Maintenance#equals(java.lang.Object)boolean
+method weeno.nightcache.database.SqliteStore$Maintenance#freePages()long
+method weeno.nightcache.database.SqliteStore$Maintenance#hashCode()int
+method weeno.nightcache.database.SqliteStore$Maintenance#healthy()boolean
+method weeno.nightcache.database.SqliteStore$Maintenance#pages()long
+method weeno.nightcache.database.SqliteStore$Maintenance#rows()long
+method weeno.nightcache.database.SqliteStore$Maintenance#store()java.lang.String
+method weeno.nightcache.database.SqliteStore$Maintenance#toString()java.lang.String
+method weeno.nightcache.diag.DiagDelta#after()long
+method weeno.nightcache.diag.DiagDelta#before()long
+method weeno.nightcache.diag.DiagDelta#delta()long
+method weeno.nightcache.diag.DiagDelta#isGrowth()boolean
+method weeno.nightcache.diag.DiagDelta#key()java.lang.String
+method weeno.nightcache.diag.DiagSnapshot#counters()java.util.Map
+method weeno.nightcache.diag.DiagSnapshot#diff(weeno.nightcache.diag.DiagSnapshot)java.util.List
+method weeno.nightcache.diag.DiagSnapshot#get(java.lang.String)long
+method weeno.nightcache.diag.DiagSnapshot#static capture()weeno.nightcache.diag.DiagSnapshot
+method weeno.nightcache.diag.DiagSnapshot#static clear()void
+method weeno.nightcache.diag.DiagSnapshot#static clearGauges()void
+method weeno.nightcache.diag.DiagSnapshot#static gauge(java.lang.String,java.util.function.LongSupplier)void
+method weeno.nightcache.diag.DiagSnapshot#static read()java.util.List
+method weeno.nightcache.diag.DiagSnapshot#static remove(java.lang.String)void
+method weeno.nightcache.diag.DiagSnapshot#static size()int
+method weeno.nightcache.diag.DiagSnapshot#static snapshot()java.util.Map
+method weeno.nightcache.diag.DiagSnapshot#time()long
+method weeno.nightcache.diag.DiagSnapshot$Gauge#equals(java.lang.Object)boolean
+method weeno.nightcache.diag.DiagSnapshot$Gauge#hashCode()int
+method weeno.nightcache.diag.DiagSnapshot$Gauge#name()java.lang.String
+method weeno.nightcache.diag.DiagSnapshot$Gauge#toString()java.lang.String
+method weeno.nightcache.diag.DiagSnapshot$Gauge#value()long
+method weeno.nightcache.interfaces.Managed#cleanUp()void
+method weeno.nightcache.interfaces.Managed#estimatedSize()long
+method weeno.nightcache.interfaces.Managed#invalidateAll()void
+method weeno.nightcache.interfaces.Managed#name()java.lang.String
+method weeno.nightcache.interfaces.Managed#stats()weeno.nightcache.objects.CacheStats
+method weeno.nightcache.interfaces.ManagedCache#asMap()java.util.concurrent.ConcurrentMap
+method weeno.nightcache.interfaces.ManagedCache#get(java.lang.Object,java.util.function.Function)java.lang.Object
+method weeno.nightcache.interfaces.ManagedCache#getIfPresent(java.lang.Object)java.lang.Object
+method weeno.nightcache.interfaces.ManagedCache#invalidate(java.lang.Object)void
+method weeno.nightcache.interfaces.ManagedCache#put(java.lang.Object,java.lang.Object)void
+method weeno.nightcache.interfaces.ObjectPool#available()int
+method weeno.nightcache.interfaces.ObjectPool#borrow()java.lang.Object
+method weeno.nightcache.interfaces.ObjectPool#capacity()int
+method weeno.nightcache.interfaces.ObjectPool#clear()void
+method weeno.nightcache.interfaces.ObjectPool#release(java.lang.Object)void
+method weeno.nightcache.interfaces.PersistentStore#close()void
+method weeno.nightcache.interfaces.PersistentStore#count()long
+method weeno.nightcache.interfaces.PersistentStore#delete(java.lang.Object)void
+method weeno.nightcache.interfaces.PersistentStore#load(java.lang.Object)java.lang.Object
+method weeno.nightcache.interfaces.PersistentStore#loadAll()java.util.Map
+method weeno.nightcache.interfaces.PersistentStore#name()java.lang.String
+method weeno.nightcache.interfaces.PersistentStore#save(java.lang.Object,java.lang.Object)void
+method weeno.nightcache.interfaces.PersistentStore#saveAll(java.util.Map)void
+method weeno.nightcache.interfaces.Registration#unregister()void
+method weeno.nightcache.interfaces.Serializer#deserialize(java.lang.String)java.lang.Object
+method weeno.nightcache.interfaces.Serializer#serialize(java.lang.Object)java.lang.String
+method weeno.nightcache.listeners.DataListener#onJoin(org.bukkit.event.player.PlayerJoinEvent)void
+method weeno.nightcache.listeners.DataListener#onQuit(org.bukkit.event.player.PlayerQuitEvent)void
+method weeno.nightcache.objects.CacheSpec#maxSize()long
+method weeno.nightcache.objects.CacheSpec#name()java.lang.String
+method weeno.nightcache.objects.CacheSpec#softValues()boolean
+method weeno.nightcache.objects.CacheSpec#static bounded(java.lang.String,long)weeno.nightcache.objects.CacheSpec
+method weeno.nightcache.objects.CacheSpec#static expiring(java.lang.String,long,java.util.concurrent.TimeUnit)weeno.nightcache.objects.CacheSpec
+method weeno.nightcache.objects.CacheSpec#static named(java.lang.String)weeno.nightcache.objects.CacheSpec$Builder
+method weeno.nightcache.objects.CacheSpec#static persistent(java.lang.String)weeno.nightcache.objects.CacheSpec
+method weeno.nightcache.objects.CacheSpec#stats()boolean
+method weeno.nightcache.objects.CacheSpec#ttlAccessMs()long
+method weeno.nightcache.objects.CacheSpec#ttlWriteMs()long
+method weeno.nightcache.objects.CacheSpec#weakKeys()boolean
+method weeno.nightcache.objects.CacheSpec#weakValues()boolean
+method weeno.nightcache.objects.CacheSpec$Builder#build()weeno.nightcache.objects.CacheSpec
+method weeno.nightcache.objects.CacheSpec$Builder#maxSize(long)weeno.nightcache.objects.CacheSpec$Builder
+method weeno.nightcache.objects.CacheSpec$Builder#softValues()weeno.nightcache.objects.CacheSpec$Builder
+method weeno.nightcache.objects.CacheSpec$Builder#stats()weeno.nightcache.objects.CacheSpec$Builder
+method weeno.nightcache.objects.CacheSpec$Builder#ttlAccess(long,java.util.concurrent.TimeUnit)weeno.nightcache.objects.CacheSpec$Builder
+method weeno.nightcache.objects.CacheSpec$Builder#ttlWrite(long,java.util.concurrent.TimeUnit)weeno.nightcache.objects.CacheSpec$Builder
+method weeno.nightcache.objects.CacheSpec$Builder#weakKeys()weeno.nightcache.objects.CacheSpec$Builder
+method weeno.nightcache.objects.CacheSpec$Builder#weakValues()weeno.nightcache.objects.CacheSpec$Builder
+method weeno.nightcache.objects.CacheStats#estimatedSize()long
+method weeno.nightcache.objects.CacheStats#evictionCount()long
+method weeno.nightcache.objects.CacheStats#hitCount()long
+method weeno.nightcache.objects.CacheStats#hitRate()double
+method weeno.nightcache.objects.CacheStats#missCount()long
+method weeno.nightcache.objects.CacheStats#name()java.lang.String
+method weeno.nightcache.objects.CacheStats#toString()java.lang.String
+method weeno.nightcache.objects.LeaderboardEntry#key()java.lang.Object
+method weeno.nightcache.objects.LeaderboardEntry#rank()int
+method weeno.nightcache.objects.LeaderboardEntry#score()long
+method weeno.nightcache.objects.LeaderboardEntry#toString()java.lang.String
+method weeno.nightcache.objects.LeaderboardEntry#withRank(int)weeno.nightcache.objects.LeaderboardEntry
+method weeno.nightcache.objects.PoolStats#available()int
+method weeno.nightcache.objects.PoolStats#capacity()int
+method weeno.nightcache.objects.PoolStats#fillRate()double
+method weeno.nightcache.objects.PoolStats#name()java.lang.String
+method weeno.nightcache.objects.PoolStats#static snapshot(java.lang.String,weeno.nightcache.interfaces.ObjectPool)weeno.nightcache.objects.PoolStats
+method weeno.nightcache.objects.PoolStats#toString()java.lang.String
+method weeno.nightcache.platform.Platform#static asyncTimer(java.lang.String,java.lang.Runnable,long)java.lang.Runnable
+method weeno.nightcache.platform.Platform#static folia()boolean
+method weeno.nightcache.platform.Platform#static isPrimaryThread()boolean
+method weeno.nightcache.platform.Platform#static shutdown()void
+method weeno.nightcache.platform.Platform#static syncTimer(org.bukkit.plugin.Plugin,java.lang.Runnable,long,long)java.lang.Runnable
+method weeno.nightcache.save.PersistenceManager#static async(java.lang.Runnable)boolean
+method weeno.nightcache.save.PersistenceManager#static beginShutdown()void
+method weeno.nightcache.save.PersistenceManager#static bindPlayer(weeno.nightcache.interfaces.ManagedCache,weeno.nightcache.interfaces.PersistentStore,java.util.function.Function)weeno.nightcache.save.PlayerBinding
+method weeno.nightcache.save.PersistenceManager#static bindPlayer(weeno.nightcache.interfaces.ManagedCache,weeno.nightcache.interfaces.PersistentStore,java.util.function.Function,java.util.function.UnaryOperator,java.util.function.BiPredicate)weeno.nightcache.save.PlayerBinding
+method weeno.nightcache.save.PersistenceManager#static bindingCount()int
+method weeno.nightcache.save.PersistenceManager#static flushAll()void
+method weeno.nightcache.save.PersistenceManager#static folder()java.io.File
+method weeno.nightcache.save.PersistenceManager#static hookCount()int
+method weeno.nightcache.save.PersistenceManager#static init(org.bukkit.plugin.Plugin)void
+method weeno.nightcache.save.PersistenceManager#static initializeWriter(java.io.File,java.util.logging.Logger)void
+method weeno.nightcache.save.PersistenceManager#static isAccepting()boolean
+method weeno.nightcache.save.PersistenceManager#static isShuttingDown()boolean
+method weeno.nightcache.save.PersistenceManager#static isStopping()boolean
+method weeno.nightcache.save.PersistenceManager#static loadPlayer(java.util.UUID)void
+method weeno.nightcache.save.PersistenceManager#static loadPlayers(java.util.Collection)void
+method weeno.nightcache.save.PersistenceManager#static maintenance()void
+method weeno.nightcache.save.PersistenceManager#static onAutoSave(java.lang.Runnable)void
+method weeno.nightcache.save.PersistenceManager#static onWriter(java.lang.String,java.lang.String,weeno.nightcache.save.PersistenceManager$SqlCall)java.lang.Object
+method weeno.nightcache.save.PersistenceManager#static queueSize()int
+method weeno.nightcache.save.PersistenceManager#static removeAutoSave(java.lang.Runnable)boolean
+method weeno.nightcache.save.PersistenceManager#static savePlayer(java.util.UUID)void
+method weeno.nightcache.save.PersistenceManager#static shutdown()void
+method weeno.nightcache.save.PersistenceManager#static shutdown(long)void
+method weeno.nightcache.save.PersistenceManager#static store(java.lang.String,weeno.nightcache.utils.KeyCodec,weeno.nightcache.interfaces.Serializer)weeno.nightcache.database.SqliteStore
+method weeno.nightcache.save.PersistenceManager#static storeCount()int
+method weeno.nightcache.save.PersistenceManager#static storeNames()java.util.List
+method weeno.nightcache.save.PersistenceManager#static submit(java.lang.Runnable)void
+method weeno.nightcache.save.PersistenceManager#static tick()void
+method weeno.nightcache.save.PersistenceManager#static unbindPlayer(weeno.nightcache.interfaces.ManagedCache)boolean
+method weeno.nightcache.save.PersistenceManager$SqlCall#call()java.lang.Object
+method weeno.nightcache.save.PlayerBinding#finalSave()java.lang.Runnable
+method weeno.nightcache.save.PlayerBinding#flushAll()void
+method weeno.nightcache.save.PlayerBinding#get(java.util.UUID)java.lang.Object
+method weeno.nightcache.save.PlayerBinding#load(java.util.UUID)boolean
+method weeno.nightcache.save.PlayerBinding#pending()int
+method weeno.nightcache.save.PlayerBinding#release(java.util.UUID)void
+method weeno.nightcache.save.PlayerBinding#retain(java.util.UUID)boolean
+method weeno.nightcache.save.PlayerBinding#save(java.util.UUID)void
+method weeno.nightcache.save.PlayerBinding#saveAndEvict(java.util.UUID)void
+method weeno.nightcache.save.PlayerBinding#tick(java.util.function.Consumer)void
+method weeno.nightcache.save.PlayerStates#static evict(java.util.UUID)void
+method weeno.nightcache.save.PlayerStates#static init(java.util.logging.Logger)void
+method weeno.nightcache.save.PlayerStates#static onQuit(java.util.function.Consumer)void
+method weeno.nightcache.save.PlayerStates#static removeQuitHook(java.util.function.Consumer)boolean
+method weeno.nightcache.save.PlayerStates#static shutdown()void
+method weeno.nightcache.save.PlayerStates#static sweep()int
+method weeno.nightcache.save.PlayerStates#static track(java.util.Map)java.util.Map
+method weeno.nightcache.save.PlayerStates#static track(java.util.Set)java.util.Set
+method weeno.nightcache.save.PlayerStates#static trackRetained(java.util.Map)java.util.Map
+method weeno.nightcache.save.PlayerStates#static trackedEntries()int
+method weeno.nightcache.save.PlayerStates#static trackedMaps()int
+method weeno.nightcache.save.PlayerStates#static untrack(java.lang.Object)boolean
+method weeno.nightcache.save.SnapshotWriter#isReady()boolean
+method weeno.nightcache.save.SnapshotWriter#markReady()void
+method weeno.nightcache.save.SnapshotWriter#submit(java.util.Map)boolean
+method weeno.nightcache.save.SnapshotWriter#writeNow(java.util.Map)boolean
+method weeno.nightcache.utils.GsonSerializer#deserialize(java.lang.String)java.lang.Object
+method weeno.nightcache.utils.GsonSerializer#serialize(java.lang.Object)java.lang.String
+method weeno.nightcache.utils.GsonSerializer#static of(java.lang.Class)weeno.nightcache.utils.GsonSerializer
+method weeno.nightcache.utils.GsonSerializer#static of(java.lang.reflect.Type)weeno.nightcache.utils.GsonSerializer
+method weeno.nightcache.utils.JsonRow#b(java.lang.String)boolean
+method weeno.nightcache.utils.JsonRow#getBoolean(java.lang.String,boolean)boolean
+method weeno.nightcache.utils.JsonRow#getDouble(java.lang.String,double)double
+method weeno.nightcache.utils.JsonRow#getLong(java.lang.String,long)long
+method weeno.nightcache.utils.JsonRow#getString(java.lang.String)java.lang.String
+method weeno.nightcache.utils.JsonRow#getString(java.lang.String,java.lang.String)java.lang.String
+method weeno.nightcache.utils.JsonRow#getUuid(java.lang.String)java.util.UUID
+method weeno.nightcache.utils.JsonRow#has(java.lang.String)boolean
+method weeno.nightcache.utils.JsonRow#i(java.lang.String)int
+method weeno.nightcache.utils.JsonRow#l(java.lang.String)long
+method weeno.nightcache.utils.JsonRow#put(java.lang.String,boolean)weeno.nightcache.utils.JsonRow
+method weeno.nightcache.utils.JsonRow#put(java.lang.String,double)weeno.nightcache.utils.JsonRow
+method weeno.nightcache.utils.JsonRow#put(java.lang.String,java.lang.String)weeno.nightcache.utils.JsonRow
+method weeno.nightcache.utils.JsonRow#put(java.lang.String,java.util.UUID)weeno.nightcache.utils.JsonRow
+method weeno.nightcache.utils.JsonRow#put(java.lang.String,long)weeno.nightcache.utils.JsonRow
+method weeno.nightcache.utils.JsonRow#static create()weeno.nightcache.utils.JsonRow
+method weeno.nightcache.utils.JsonRow#static parse(java.lang.String)weeno.nightcache.utils.JsonRow
+method weeno.nightcache.utils.JsonRow#str(java.lang.String)java.lang.String
+method weeno.nightcache.utils.JsonRow#toString()java.lang.String
+method weeno.nightcache.utils.KeyCodec#decode(java.lang.String)java.lang.Object
+method weeno.nightcache.utils.KeyCodec#encode(java.lang.Object)java.lang.String
+method weeno.nightcache.utils.KeyCodec#static longKey()weeno.nightcache.utils.KeyCodec
+method weeno.nightcache.utils.KeyCodec#static of(java.util.function.Function,java.util.function.Function)weeno.nightcache.utils.KeyCodec
+method weeno.nightcache.utils.KeyCodec#static string()weeno.nightcache.utils.KeyCodec
+method weeno.nightcache.utils.KeyCodec#static uuid()weeno.nightcache.utils.KeyCodec
+method weeno.nightcache.utils.Keys#static block(int,int,int)long
+method weeno.nightcache.utils.Keys#static blockX(long)int
+method weeno.nightcache.utils.Keys#static blockY(long)int
+method weeno.nightcache.utils.Keys#static blockZ(long)int
+method weeno.nightcache.utils.Keys#static chunk(int,int)long
+method weeno.nightcache.utils.Keys#static chunkX(long)int
+method weeno.nightcache.utils.Keys#static chunkZ(long)int
+method weeno.nightcache.utils.Keys#static loc(java.lang.String,int,int,int)java.lang.String
+method weeno.nightcache.utils.Log#static bind(org.bukkit.plugin.Plugin)void
+method weeno.nightcache.utils.Log#static bindLogger(java.util.logging.Logger)void
+method weeno.nightcache.utils.Log#static info(java.lang.String)void
+method weeno.nightcache.utils.Log#static logger()java.util.logging.Logger
+method weeno.nightcache.utils.Log#static owner()java.lang.String
+method weeno.nightcache.utils.Log#static ownerOrNull()java.lang.String
+method weeno.nightcache.utils.Log#static severe(java.lang.String,java.lang.Throwable)void
+method weeno.nightcache.utils.Log#static warning(java.lang.String)void
+type weeno.nightcache.CacheManager final
+type weeno.nightcache.NightCache final
+type weeno.nightcache.caches.AsyncLeaderboard final
+type weeno.nightcache.caches.BoundedPool final
+type weeno.nightcache.caches.CaffeineCache final
+type weeno.nightcache.caches.Leaderboard final
+type weeno.nightcache.caches.LongObjectCache final
+type weeno.nightcache.caches.ObjectLongCache final
+type weeno.nightcache.database.SqliteConnections final
+type weeno.nightcache.database.SqliteDriver final
+type weeno.nightcache.database.SqliteStore final
+type weeno.nightcache.database.SqliteStore$Maintenance static final
+type weeno.nightcache.diag.DiagDelta final
+type weeno.nightcache.diag.DiagSnapshot final
+type weeno.nightcache.diag.DiagSnapshot$Gauge static final
+type weeno.nightcache.interfaces.Managed abstract interface
+type weeno.nightcache.interfaces.ManagedCache abstract interface
+type weeno.nightcache.interfaces.ObjectPool abstract interface
+type weeno.nightcache.interfaces.PersistentStore abstract interface
+type weeno.nightcache.interfaces.Registration abstract interface
+type weeno.nightcache.interfaces.Serializer abstract interface
+type weeno.nightcache.listeners.DataListener final
+type weeno.nightcache.objects.CacheSpec final
+type weeno.nightcache.objects.CacheSpec$Builder static final
+type weeno.nightcache.objects.CacheStats final
+type weeno.nightcache.objects.LeaderboardEntry final
+type weeno.nightcache.objects.PoolStats final
+type weeno.nightcache.platform.Platform final
+type weeno.nightcache.save.PersistenceManager final
+type weeno.nightcache.save.PersistenceManager$SqlCall abstract static interface
+type weeno.nightcache.save.PlayerBinding final
+type weeno.nightcache.save.PlayerStates final
+type weeno.nightcache.save.SnapshotWriter final
+type weeno.nightcache.utils.GsonSerializer final
+type weeno.nightcache.utils.JsonRow final
+type weeno.nightcache.utils.KeyCodec final
+type weeno.nightcache.utils.Keys final
+type weeno.nightcache.utils.Log final

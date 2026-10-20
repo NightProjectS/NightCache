@@ -2,6 +2,7 @@ package weeno.nightcache.database;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import weeno.nightcache.interfaces.Serializer;
@@ -18,7 +19,8 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-/** Store réel sur le pilote SQLite 3.7.2 des serveurs 1.8, via l'écrivain unique de PersistenceManager. */
+/** Store réel sur les pilotes SQLite 3.7.2 (serveurs 1.8) et récent, via l'écrivain unique de PersistenceManager. */
+@Tag("sqlite")
 class SqliteStoreTest {
 
     /** Valeur "a|b" ; "BOOM" fait échouer la sérialisation, "?" est illisible à la relecture. */
