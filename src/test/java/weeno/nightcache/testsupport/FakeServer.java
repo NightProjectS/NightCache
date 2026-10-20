@@ -55,7 +55,18 @@ public final class FakeServer {
             case "toString" -> "FakeServer";
             default -> defaults(m.getReturnType());
         });
-        Bukkit.setServer(server);
+        try {
+            Bukkit.setServer(server);
+        } catch (RuntimeException paper) {
+            // Paper 1.21 : setServer lit les infos de build du serveur (absentes ici) ; champ positionné directement.
+            try {
+                java.lang.reflect.Field f = Bukkit.class.getDeclaredField("server");
+                f.setAccessible(true);
+                f.set(null, server);
+            } catch (ReflectiveOperationException e) {
+                throw new IllegalStateException("serveur factice impossible", e);
+            }
+        }
     }
 
     /** Plugin factice : nom et logger seulement. */

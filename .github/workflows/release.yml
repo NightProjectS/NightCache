@@ -20,7 +20,7 @@ concurrency:
 
 jobs:
   compat:
-    name: compile Paper 1.21.11
+    name: compile + tests Paper 1.21.11
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -29,7 +29,7 @@ jobs:
           distribution: temurin
           java-version: '21'
           cache: maven
-      - run: mvn -B -q -Pmc-latest -DskipTests compile
+      - run: mvn -B -Pmc-latest test
 
   release:
     name: build Spigot 1.8.8 + release
