@@ -104,6 +104,7 @@ public final class PlayerStates {
      * @return nombre de joueurs purgés.
      */
     public static int sweep() {
+        if (nothingTracked()) return 0; // cas courant : aucune allocation (appelé toutes les 600 ticks)
         Set<UUID> ids = new HashSet<>();
         for (Map<UUID, ?> map : MAPS) ids.addAll(map.keySet());
         for (Set<UUID> set : SETS) ids.addAll(set);
@@ -119,6 +120,13 @@ public final class PlayerStates {
             }
         }
         return removed;
+    }
+
+    /** Boucles indexées : pas d'itérateur alloué sur les listes copy-on-write. */
+    private static boolean nothingTracked() {
+        for (int i = 0; i < MAPS.size(); i++) if (!MAPS.get(i).isEmpty()) return false;
+        for (int i = 0; i < SETS.size(); i++) if (!SETS.get(i).isEmpty()) return false;
+        return true;
     }
 
     public static int trackedMaps() {
