@@ -3,6 +3,7 @@ package weeno.nightcache.caches;
 import org.bukkit.plugin.Plugin;
 import org.jetbrains.annotations.Contract;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 import org.jetbrains.annotations.Unmodifiable;
 import weeno.nightcache.objects.LeaderboardEntry;
 import weeno.nightcache.platform.Platform;
@@ -46,6 +47,12 @@ public final class AsyncLeaderboard<K> {
     private volatile Runnable task;
     /** Génération du dernier top publié (thread async uniquement). */
     private volatile int publishedGeneration = -1;
+    /** Arrêté par {@link #stop()} : les écritures sont ignorées (plus personne ne viderait la file). */
+    private volatile boolean stopped;
+    /** Dernière vue « n premiers » du top publié (lecture sans allocation tant que le top ne change pas). */
+    private volatile @Nullable TopView<K> view;
+
+    private record TopView<K>(List<LeaderboardEntry<K>> source, int n, List<LeaderboardEntry<K>> list) {}
 
     public AsyncLeaderboard(@NotNull String name, int topN, long refreshMs, long periodTicks) {
         this.delegate = new Leaderboard<>(name, refreshMs);
@@ -53,29 +60,37 @@ public final class AsyncLeaderboard<K> {
         this.periodTicks = periodTicks;
     }
 
-    /** Démarre le rafraîchissement async périodique. Idempotent. */
-    public void start(@NotNull Plugin plugin) {
+    /** Démarre (ou redémarre après {@link #stop()}) le rafraîchissement async périodique. Idempotent. */
+    public synchronized void start(@NotNull Plugin plugin) {
         if (task != null) return;
-        task = Platform.asyncTimer("leaderboard", this::tick, Math.max(1L, periodTicks) * 50L);
+        stopped = false;
+        long periodMs = Math.min(Math.max(1L, periodTicks), Long.MAX_VALUE / 50L) * 50L; // sans dépassement
+        task = Platform.asyncTimer("leaderboard", this::tick, periodMs);
     }
 
-    /** Stoppe le thread de rafraîchissement (appelé au shutdown). */
-    public void stop() {
+    /** Stoppe le rafraîchissement (shutdown) ; les écritures suivantes sont ignorées jusqu'à {@link #start}. */
+    public synchronized void stop() {
+        stopped = true;
         Runnable t = task;
-        if (t != null) { t.run(); task = null; }
+        task = null;
+        if (t != null) t.run();
         pending.clear();
         delegate.invalidateAll();
         top = Collections.emptyList();
         ranks = Collections.emptyMap();
+        view = null;
+        publishedGeneration = -1;
     }
 
     /** Ajoute {@code delta} au score — <b>lock-free</b>, appelable depuis le main thread. */
     public void add(@NotNull K key, long delta) {
+        if (stopped) return;
         pending.offer(new Update<>(key, delta, false));
     }
 
     /** Fixe le score absolu — <b>lock-free</b>, appelable depuis le main thread. */
     public void set(@NotNull K key, long score) {
+        if (stopped) return;
         pending.offer(new Update<>(key, score, true));
     }
 
@@ -86,12 +101,20 @@ public final class AsyncLeaderboard<K> {
         return top;
     }
 
-    /** @return les {@code n} premiers du dernier snapshot — sans lock. */
+    /**
+     * @return les {@code n} premiers du dernier snapshot — sans lock, et sans allocation tant que le top publié et
+     * {@code n} ne changent pas.
+     */
     @NotNull
     @Unmodifiable
     public List<LeaderboardEntry<K>> getTop(int n) {
         List<LeaderboardEntry<K>> t = top;
-        return n >= t.size() ? t : t.subList(0, Math.max(0, n));
+        if (n >= t.size()) return t;
+        TopView<K> v = view;
+        if (v != null && v.source() == t && v.n() == n) return v.list();
+        List<LeaderboardEntry<K>> sub = t.subList(0, Math.max(0, n));
+        view = new TopView<>(t, n, sub);
+        return sub;
     }
 
     /** @return rang (1 = meilleur) si dans le top-N publié, sinon {@code -1}. Sans lock. */
@@ -131,6 +154,7 @@ public final class AsyncLeaderboard<K> {
         delegate.invalidateAll();
         top = Collections.emptyList();
         ranks = Collections.emptyMap();
+        view = null;
         publishedGeneration = -1;
     }
 }

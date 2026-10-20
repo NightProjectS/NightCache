@@ -102,16 +102,18 @@ public final class LongObjectCache<V> implements Managed {
         synchronized (lock) { allocate(16); }
     }
 
+    /** Purge les entrées expirées (TTL) puis rend la mémoire d'un pic passé, avec ou sans TTL. */
     @Override
     public void cleanUp() {
-        if (expires == null) return;
         synchronized (lock) {
-            long now = System.currentTimeMillis();
-            int i = head;
-            while (i != NONE) {
-                int next = after[i];
-                if (expires[i] <= now) { remove(i); evictions++; }
-                i = next;
+            if (expires != null) {
+                long now = System.currentTimeMillis();
+                int i = head;
+                while (i != NONE) {
+                    int next = after[i];
+                    if (expires[i] <= now) { remove(i); evictions++; }
+                    i = next;
+                }
             }
             shrinkIfSparse();
         }

@@ -2,6 +2,7 @@ package weeno.nightcache.caches;
 
 import org.jetbrains.annotations.Contract;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 import org.jetbrains.annotations.Unmodifiable;
 import weeno.nightcache.interfaces.Managed;
 import weeno.nightcache.objects.CacheStats;
@@ -21,8 +22,9 @@ import java.util.Map;
  * <p>
  * Le top-N est calculé par <b>sélection partielle</b> (tas-min borné à N, sur tableaux primitifs réutilisés) en
  * {@code O(m log N)}, puis trié en place : seules les {@link LeaderboardEntry} publiées sont allouées. Le snapshot
- * est recalculé après toute écriture (lecture exacte), et réutilisé tel quel pendant {@code refreshMs} sinon. Les
- * rangs hors top sont comptés en {@code O(m)} sur les scores courants.
+ * est recalculé après toute écriture (lecture exacte) ou pour un top plus grand, et réutilisé tel quel sinon : sans
+ * écriture, {@code top} n'alloue rien (la vue des {@code n} premiers est elle aussi réutilisée). Les rangs hors top
+ * sont comptés en {@code O(m)} sur les scores courants ; dans le top, à score égal, le rang est la position publiée.
  * <p>
  * Thread: thread-safe.
  */
@@ -32,25 +34,29 @@ public final class Leaderboard<K> implements Managed {
     private static final long RANK_MASK = 0xFFFF_FFFFL;
 
     private final String name;
-    private final long refreshMs;
     private final Object lock = new Object();
     private final HashMap<K, long[]> scores = new HashMap<>(256);
 
     private List<LeaderboardEntry<K>> snapshot = Collections.emptyList();
     private int snapshotCap;
     private int generation;
-    private long lastRefresh;
     private boolean dirty = true;
     private long queries;
+    // Dernière vue « n premiers » du snapshot courant, réutilisée tant que ni le snapshot ni n ne changent.
+    private @Nullable List<LeaderboardEntry<K>> view;
+    private int viewN;
 
     // Tampons du tas, réutilisés d'un calcul à l'autre (références nettoyées après usage).
     private Object[] heapKeys = new Object[0];
     private long[] heapScores = new long[0];
     private long[][] heapCells = new long[0][];
 
+    /**
+     * @param refreshMs conservé pour la compatibilité de l'API 1.x : sans écriture le snapshot reste exact, il n'est
+     *                  donc plus recalculé périodiquement (aucun effet sur les résultats).
+     */
     public Leaderboard(@NotNull String name, long refreshMs) {
         this.name = name;
-        this.refreshMs = refreshMs;
     }
 
     public void set(@NotNull K key, long score) {
@@ -97,7 +103,13 @@ public final class Leaderboard<K> implements Managed {
             queries++;
             List<LeaderboardEntry<K>> s = snapshot;
             if (n <= 0 || s.isEmpty()) return Collections.emptyList();
-            return n >= s.size() ? s : s.subList(0, n);
+            if (n >= s.size()) return s;
+            List<LeaderboardEntry<K>> v = view;
+            if (v == null || viewN != n) {
+                view = v = s.subList(0, n);
+                viewN = n;
+            }
+            return v;
         }
     }
 
@@ -124,6 +136,7 @@ public final class Leaderboard<K> implements Managed {
             scores.clear();
             snapshot = Collections.emptyList();
             snapshotCap = 0;
+            view = null;
             generation++;
             dirty = true;
             heapKeys = new Object[0];
@@ -148,12 +161,12 @@ public final class Leaderboard<K> implements Managed {
 
     /**
      * Sous verrou. Une écriture déclenche toujours un recalcul (les lectures persistent l'état exact, ex. sauvegarde
-     * des votes par {@code top(estimatedSize())}) ; sans écriture, le snapshot est réutilisé pendant
-     * {@code refreshMs}.
+     * des votes par {@code top(estimatedSize())}) ; sans écriture, le snapshot reste exact et n'est jamais recalculé
+     * (l'ancien recalcul périodique, à {@code refreshMs} = 0 dans {@code AsyncLeaderboard}, triait et allouait à chaque
+     * lecture pour un résultat identique).
      */
     private void refreshIfNeeded(int wantN) {
-        long now = System.currentTimeMillis();
-        if (!dirty && wantN <= snapshotCap && now - lastRefresh < refreshMs) return;
+        if (!dirty && wantN <= snapshotCap) return;
         int cap = Math.max(wantN, DEFAULT_CAP);
         int limit = Math.min(cap, scores.size());
         ensureHeap(limit);
@@ -196,9 +209,9 @@ public final class Leaderboard<K> implements Managed {
             hc[r] = null;
         }
         snapshot = size == 0 ? Collections.emptyList() : Collections.unmodifiableList(Arrays.asList(out));
+        view = null;
         snapshotCap = cap;
         generation = gen;
-        lastRefresh = now;
         dirty = false;
     }
 
