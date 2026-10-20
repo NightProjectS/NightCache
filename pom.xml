@@ -72,6 +72,26 @@
                     </compilerArgs>
                 </configuration>
             </plugin>
+            <!-- Chargeur de référence (loader/, copié dans les plugins) compilé et testé avec les tests. -->
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>build-helper-maven-plugin</artifactId>
+                <version>3.6.0</version>
+                <executions>
+                    <execution>
+                        <id>loader-tests</id>
+                        <phase>generate-test-sources</phase>
+                        <goals>
+                            <goal>add-test-source</goal>
+                        </goals>
+                        <configuration>
+                            <sources>
+                                <source>loader</source>
+                            </sources>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
             <!-- Pilote SQLite récent (serveurs modernes) copié pour la 2e passe des tests de stockage. -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
@@ -223,6 +243,13 @@
             <groupId>org.xerial</groupId>
             <artifactId>sqlite-jdbc</artifactId>
             <version>3.7.2</version>
+            <scope>test</scope>
+        </dependency>
+        <!-- Relocalisation du chargeur (loader/), comme dans les plugins. -->
+        <dependency>
+            <groupId>org.ow2.asm</groupId>
+            <artifactId>asm-commons</artifactId>
+            <version>9.7.1</version>
             <scope>test</scope>
         </dependency>
         <!-- Requis à l'exécution par sqlite-jdbc récent (2e passe des tests). -->

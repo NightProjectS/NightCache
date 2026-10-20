@@ -76,10 +76,15 @@ public final class NightCacheLibrary {
                     log.warning("[NightCache] libs/" + JAR + " " + local.version() + " (API " + local.api() + ") plus ancien que la copie "
                             + "embarquée " + embedded.version() + " ou incompatible : copie embarquée utilisée.");
                 }
-                install(embedded.path(), jar);
-                Files.writeString(versionFile, embedded.version(), StandardCharsets.UTF_8);
-                local = LibraryJar.inspect(jar);
-                if (local == null) throw new IllegalStateException("copie embarquée illisible");
+                if (install(embedded.path(), jar)) {
+                    Files.writeString(versionFile, embedded.version(), StandardCharsets.UTF_8);
+                    local = LibraryJar.inspect(jar);
+                    if (local == null) throw new IllegalStateException("copie embarquée illisible");
+                } else {
+                    // libs/NightCache.jar verrouillé ou remplacé par un autre : la copie embarquée sert depuis le cache.
+                    log.warning("[NightCache] libs/" + JAR + " non remplaçable : copie embarquée " + embedded.version() + " utilisée.");
+                    local = embedded;
+                }
             }
 
             Path relocated = relocated(libs, local);
@@ -109,7 +114,7 @@ public final class NightCacheLibrary {
                 if (in == null) throw new IOException("ressource " + EMBEDDED + " absente du plugin");
                 Files.copy(in, tmp, StandardCopyOption.REPLACE_EXISTING);
             }
-            install(tmp, out);
+            if (!install(tmp, out)) throw new IOException("copie embarquée non extraite : " + out + " occupé par un autre jar");
         } finally {
             deleteQuietly(tmp, null);
         }
@@ -141,7 +146,12 @@ public final class NightCacheLibrary {
                 log.warning("[NightCache] release " + remote + " rejetée : jar invalide ou manifeste incohérent.");
                 return;
             }
-            install(part, jar);
+            if (!install(part, jar)) {
+                // Remplacement impossible (jar verrouillé…) : l'ancien jar reste en place, la version écrite doit rester la
+                // sienne, sinon la mise à jour ne serait plus jamais retentée.
+                log.warning("[NightCache] release " + remote + " téléchargée mais non installée : " + current + " conservée.");
+                return;
+            }
             Files.writeString(versionFile, remote, StandardCharsets.UTF_8);
             log.info("[NightCache] mis à jour : " + (current.isEmpty() ? "?" : current) + " -> " + remote);
         } catch (IOException | RuntimeException e) {
@@ -152,14 +162,20 @@ public final class NightCacheLibrary {
     }
 
     /**
-     * Remplace {@code target} par {@code source} de façon atomique. Si un autre serveur partageant le dossier l'a
-     * remplacé au même instant et que le résultat est un jar valide, ce n'est pas une erreur.
+     * Remplace {@code target} par {@code source} de façon atomique.
+     *
+     * @return {@code true} si {@code target} contient désormais exactement {@code source} (déplacé, ou installé au même
+     * instant par un autre serveur partageant le dossier) ; {@code false} si le déplacement a échoué et que
+     * {@code target} garde un AUTRE jar valide (ancienne version conservée : l'appelant ne doit pas annoncer la nouvelle).
+     * @throws IOException déplacement impossible et aucun jar valide en place
      */
-    private static void install(@NotNull Path source, @NotNull Path target) throws IOException {
+    static boolean install(@NotNull Path source, @NotNull Path target) throws IOException {
+        String expected = LibraryJar.sha256(source);
         try {
             Files.move(source, target, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+            return true;
         } catch (IOException e) {
-            if (Files.isRegularFile(target) && isJar(target)) return;
+            if (Files.isRegularFile(target) && isJar(target)) return expected.equals(LibraryJar.sha256(target));
             throw e;
         }
     }
